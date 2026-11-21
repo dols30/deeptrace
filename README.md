@@ -43,7 +43,19 @@ Run the backend tests in a Python 3.11 or newer environment with `requirements-d
 
 ## Validation
 
-In the 57-file held-out experiment, the adapted research profile got 46 of 49 decisive results correct (93.9%). Eight results were incomplete. Across all 57 files, 46 were correct (80.7%). The all-model setup above uses the original scene checkpoint. See the [validation report](docs/VALIDATION_RESULTS.md) for the test splits, decision coverage, and limitations.
+Only the matching labelled task is used for each model's individual accuracy. A generated video's whole-file label does not label its audio track as spoofed.
+
+| Check | Matching test files | Accuracy | Observed FPR | Manipulation/spoof recall |
+| --- | --- | ---: | ---: | ---: |
+| EfficientNet-B4 face check | 10 genuine + 10 manipulated | **90.0% (18/20)** | 0/10 (0%) | 8/10 (80%) |
+| Community Forensics, original scene head | 8 genuine + 8 generated | 87.5% (14/16) | 0/8 (0%) | 6/8 (75%) |
+| Community Forensics, adapted scene head | Same 16 videos | **100% (16/16)** | 0/8 (0%) | 8/8 (100%) |
+| AASIST, full-recording window profile | 9 genuine + 12 spoof utterances | **95.24% (20/21)** | 1/9 (11.11%) | 12/12 (100%) |
+| LFCC-LCNN vocoder check | Same 21 utterances | 85.71% (18/21) | 1/9 (11.11%) | 10/12 (83.33%) |
+| CNNDetection GAN-artifact check | 8 genuine + 8 generated videos | 50.0% (8/16) | 0/8 (0%) | 0/8 (0%) |
+| SOFTNet and descriptive review measurements | Not evaluated as manipulation classifiers | Not established | Not established | Not established |
+
+The adapted scene head was evaluated on a small held-out subset. The all-model setup uses the original scene checkpoint. See the [validation report](docs/VALIDATION_RESULTS.md) for test splits, coverage, and full results.
 
 For implementation details, see [architecture](docs/ARCHITECTURE.md), [API contracts](docs/API.md), and the [model registry](docs/MODEL_REGISTRY.md).
 

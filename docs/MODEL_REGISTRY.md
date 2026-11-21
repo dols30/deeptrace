@@ -139,7 +139,7 @@ Code in `backend/deeptrace/experimental/` and `backend/experiments/`; result typ
 
 ## Rules for changing models
 
-See [`backend/AGENTS.md`](../backend/AGENTS.md) and the `.cursor/skills/add-detector/` skill. In short: new detectors are opt-in, preserve the runner JSON contract and `ComponentResult` semantics, record checkpoint provenance (URL, revision, SHA-256, license, training data), benchmark at the independent video/utterance level, and never become the default implicitly.
+For contributions, new detectors are opt-in, preserve the runner JSON contract and `ComponentResult` semantics, record checkpoint provenance (URL, revision, SHA-256, license, training data), benchmark at the independent video/utterance level, and never become the default implicitly.
 
 
 ## Extended PoC inference and descriptive methods (October 22, 2026)
