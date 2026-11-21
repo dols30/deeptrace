@@ -1,0 +1,5 @@
+video_id,path,label,task,generator,dataset,scenario,degradation,source_id,split,efficientnet_score,fakestormer_score
+ff-real-001,/data/ff-real-001.mp4,real,face_manipulation,unknown,faceforensics++,interview_like,original,ff-source-real-001,validation,0.12,
+ff-fake-001,/data/ff-fake-001.mp4,manipulated,face_manipulation,faceswap,faceforensics++,interview_like,original,ff-source-fake-001,validation,0.84,
+cdf-real-001,/data/cdf-real-001.mp4,real,face_manipulation,unknown,celeb-df-v2,interview_like,original,cdf-source-real-001,test,0.17,
+cdf-fake-001,/data/cdf-fake-001.mp4,manipulated,face_manipulation,unknown,celeb-df-v2,interview_like,original,cdf-source-fake-001,test,0.78,

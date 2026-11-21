@@ -1,0 +1,18 @@
+# Install in a dedicated CUDA 11 environment; do not install into .venv-models.
+# The official project recommends Python >=3.8, torch 1.8.0, torchvision 0.9.0,
+# CUDA 11.4, and mmcv 1.6.1 built from source.
+albumentations==1.1.0
+imgaug==0.4.0
+imutils==0.5.4
+natsort==8.4.0
+numpy==1.23.3
+opencv-python==4.5.1.48
+pandas==1.3.5
+Pillow==9.3.0
+python-box==7.1.1
+PyYAML
+retina-face
+scikit-image==0.19.3
+scipy==1.9.3
+tensorboardX==2.5.1
+tqdm

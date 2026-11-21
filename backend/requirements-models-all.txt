@@ -1,0 +1,8 @@
+# Additional dependencies for the explicit all-models Docker profile.
+# The core image supplies requirements-models-cpu.txt; replace plain OpenCV with contrib.
+torchaudio==2.7.1
+tensorflow==2.16.2
+keras==3.15.1
+h5py==3.14.0
+pandas==1.5.3
+opencv-contrib-python-headless==4.10.0.84

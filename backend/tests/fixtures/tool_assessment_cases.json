@@ -1,0 +1,363 @@
+[
+  {
+    "name": "all clear",
+    "report": {
+      "components": [
+        {
+          "component": "video",
+          "status": "functional",
+          "model_name": "Face",
+          "detector_id": "face",
+          "raw_score": 0.1,
+          "threshold": 0.5,
+          "timestamps_seconds": [],
+          "anomalies": []
+        },
+        {
+          "component": "video",
+          "status": "functional",
+          "model_name": "Face",
+          "detector_id": "scene",
+          "raw_score": 0.1,
+          "threshold": 0.5,
+          "timestamps_seconds": [],
+          "anomalies": []
+        }
+      ],
+      "anomalies": []
+    },
+    "expected": {
+      "decision": "not_flagged",
+      "tone": "neutral",
+      "missing_checks": 0,
+      "limited_face_coverage": false
+    }
+  },
+  {
+    "name": "boundary flags",
+    "report": {
+      "components": [
+        {
+          "component": "video",
+          "status": "functional",
+          "model_name": "Face",
+          "detector_id": "face",
+          "raw_score": 0.5,
+          "threshold": 0.5,
+          "timestamps_seconds": [],
+          "anomalies": []
+        }
+      ],
+      "anomalies": []
+    },
+    "expected": {
+      "decision": "flagged",
+      "tone": "review",
+      "missing_checks": 0,
+      "limited_face_coverage": false
+    }
+  },
+  {
+    "name": "timestamps flag below mean",
+    "report": {
+      "components": [
+        {
+          "component": "video",
+          "status": "functional",
+          "model_name": "Face",
+          "detector_id": "face",
+          "raw_score": 0.1,
+          "threshold": 0.5,
+          "timestamps_seconds": [
+            1.0
+          ],
+          "anomalies": []
+        }
+      ],
+      "anomalies": []
+    },
+    "expected": {
+      "decision": "flagged",
+      "tone": "review",
+      "missing_checks": 0,
+      "limited_face_coverage": false
+    }
+  },
+  {
+    "name": "anomaly flags below mean",
+    "report": {
+      "components": [
+        {
+          "component": "video",
+          "status": "functional",
+          "model_name": "Face",
+          "detector_id": "face",
+          "raw_score": 0.1,
+          "threshold": 0.5,
+          "timestamps_seconds": [],
+          "anomalies": [
+            {
+              "code": "ELEVATED_FRAME_SCORE"
+            }
+          ]
+        }
+      ],
+      "anomalies": []
+    },
+    "expected": {
+      "decision": "flagged",
+      "tone": "review",
+      "missing_checks": 0,
+      "limited_face_coverage": false
+    }
+  },
+  {
+    "name": "report anomaly flags",
+    "report": {
+      "components": [
+        {
+          "component": "video",
+          "status": "functional",
+          "model_name": "Face",
+          "detector_id": "face",
+          "raw_score": 0.1,
+          "threshold": 0.5,
+          "timestamps_seconds": [],
+          "anomalies": []
+        }
+      ],
+      "anomalies": [
+        {
+          "code": "ELEVATED_GENERATED_SCENE_SCORE"
+        }
+      ]
+    },
+    "expected": {
+      "decision": "flagged",
+      "tone": "review",
+      "missing_checks": 0,
+      "limited_face_coverage": false
+    }
+  },
+  {
+    "name": "failed check cannot count clear",
+    "report": {
+      "components": [
+        {
+          "component": "video",
+          "status": "error",
+          "model_name": "Face",
+          "detector_id": "face",
+          "raw_score": null,
+          "threshold": 0.5,
+          "timestamps_seconds": [],
+          "anomalies": []
+        }
+      ],
+      "anomalies": []
+    },
+    "expected": {
+      "decision": "incomplete",
+      "tone": "incomplete",
+      "missing_checks": 1,
+      "limited_face_coverage": false
+    }
+  },
+  {
+    "name": "partial flag remains review",
+    "report": {
+      "components": [
+        {
+          "component": "video",
+          "status": "functional",
+          "model_name": "Face",
+          "detector_id": "face",
+          "raw_score": 0.8,
+          "threshold": 0.5,
+          "timestamps_seconds": [],
+          "anomalies": []
+        },
+        {
+          "component": "video",
+          "status": "error",
+          "model_name": "Face",
+          "detector_id": "scene",
+          "raw_score": null,
+          "threshold": 0.5,
+          "timestamps_seconds": [],
+          "anomalies": []
+        }
+      ],
+      "anomalies": []
+    },
+    "expected": {
+      "decision": "flagged",
+      "tone": "review",
+      "missing_checks": 1,
+      "limited_face_coverage": false
+    }
+  },
+  {
+    "name": "stub overrides flags",
+    "report": {
+      "components": [
+        {
+          "component": "video",
+          "status": "functional",
+          "model_name": "Face",
+          "detector_id": "face",
+          "raw_score": 0.9,
+          "threshold": 0.5,
+          "timestamps_seconds": [],
+          "anomalies": []
+        },
+        {
+          "component": "video",
+          "status": "stub",
+          "model_name": "Face",
+          "detector_id": "face",
+          "raw_score": 0.1,
+          "threshold": 0.5,
+          "timestamps_seconds": [],
+          "anomalies": []
+        }
+      ],
+      "anomalies": []
+    },
+    "expected": {
+      "decision": "demo",
+      "tone": "neutral",
+      "missing_checks": 1,
+      "limited_face_coverage": false
+    }
+  },
+  {
+    "name": "no applicable checks",
+    "report": {
+      "components": [
+        {
+          "component": "video",
+          "status": "not_applicable",
+          "model_name": "Face",
+          "detector_id": "face",
+          "raw_score": null,
+          "threshold": 0.5,
+          "timestamps_seconds": [],
+          "anomalies": []
+        }
+      ],
+      "anomalies": []
+    },
+    "expected": {
+      "decision": "incomplete",
+      "tone": "incomplete",
+      "missing_checks": 0,
+      "limited_face_coverage": false
+    }
+  },
+  {
+    "name": "missing threshold",
+    "report": {
+      "components": [
+        {
+          "component": "video",
+          "status": "functional",
+          "model_name": "Face",
+          "detector_id": "face",
+          "raw_score": 0.1,
+          "threshold": null,
+          "timestamps_seconds": [],
+          "anomalies": []
+        }
+      ],
+      "anomalies": []
+    },
+    "expected": {
+      "decision": "incomplete",
+      "tone": "incomplete",
+      "missing_checks": 1,
+      "limited_face_coverage": false
+    }
+  },
+  {
+    "name": "legacy score supported",
+    "report": {
+      "components": [
+        {
+          "component": "video",
+          "status": "functional",
+          "model_name": "Face",
+          "detector_id": "face",
+          "raw_score": null,
+          "threshold": 0.5,
+          "timestamps_seconds": [],
+          "anomalies": [],
+          "synthetic_confidence": 0.7
+        }
+      ],
+      "anomalies": []
+    },
+    "expected": {
+      "decision": "flagged",
+      "tone": "review",
+      "missing_checks": 0,
+      "limited_face_coverage": false
+    }
+  },
+  {
+    "name": "limited clear is incomplete",
+    "report": {
+      "components": [
+        {
+          "component": "video",
+          "status": "functional",
+          "model_name": "Face",
+          "detector_id": "face",
+          "raw_score": 0.1,
+          "threshold": 0.5,
+          "timestamps_seconds": [],
+          "anomalies": [
+            {
+              "code": "LIMITED_FACE_COVERAGE"
+            }
+          ]
+        }
+      ],
+      "anomalies": []
+    },
+    "expected": {
+      "decision": "incomplete",
+      "tone": "incomplete",
+      "missing_checks": 0,
+      "limited_face_coverage": true
+    }
+  },
+  {
+    "name": "flag with limited coverage",
+    "report": {
+      "components": [
+        {
+          "component": "video",
+          "status": "functional",
+          "model_name": "Face",
+          "detector_id": "face",
+          "raw_score": 0.8,
+          "threshold": 0.5,
+          "timestamps_seconds": [],
+          "anomalies": [
+            {
+              "code": "LIMITED_FACE_COVERAGE"
+            }
+          ]
+        }
+      ],
+      "anomalies": []
+    },
+    "expected": {
+      "decision": "flagged",
+      "tone": "review",
+      "missing_checks": 0,
+      "limited_face_coverage": true
+    }
+  }
+]

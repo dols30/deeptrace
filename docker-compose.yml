@@ -1,0 +1,63 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: deeptrace
+      POSTGRES_PASSWORD: deeptrace
+      POSTGRES_DB: deeptrace
+    ports:
+      - "5432:5432"
+    volumes:
+      - deeptrace-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U deeptrace"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "127.0.0.1:8000:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DEEPTRACE_DATABASE_URL: postgresql+psycopg://deeptrace:deeptrace@postgres:5432/deeptrace
+      DEEPTRACE_FRONTEND_ORIGINS: '["http://localhost:3000","http://localhost:3001","http://127.0.0.1:3000","http://127.0.0.1:3001"]'
+      DEEPTRACE_VISUAL_WEIGHT: "0.5"
+      DEEPTRACE_EXPLAIN: ${DEEPTRACE_EXPLAIN:-false}
+      DEEPTRACE_EFFICIENTNET_DECISION_RULE: ${DEEPTRACE_EFFICIENTNET_DECISION_RULE:-default_0_5}
+      DEEPTRACE_AUTH_ENABLED: "true"
+      DEEPTRACE_LOCAL_AUTO_LOGIN: ${DEEPTRACE_LOCAL_AUTO_LOGIN:-false}
+      DEEPTRACE_AUTH_MODE: employee
+      DEEPTRACE_EMPLOYEE_USERNAME: ${DEEPTRACE_EMPLOYEE_USERNAME:-dps.employee}
+      DEEPTRACE_EMPLOYEE_PASSWORD: ${DEEPTRACE_EMPLOYEE_PASSWORD:?Set DEEPTRACE_EMPLOYEE_PASSWORD in the root .env file}
+      DEEPTRACE_SUPERVISOR_USERNAME: ${DEEPTRACE_SUPERVISOR_USERNAME:-dps.supervisor}
+      DEEPTRACE_SUPERVISOR_PASSWORD: ${DEEPTRACE_SUPERVISOR_PASSWORD:?Set DEEPTRACE_SUPERVISOR_PASSWORD in the root .env file}
+      DEEPTRACE_JWT_SECRET: ${DEEPTRACE_JWT_SECRET:?Set DEEPTRACE_JWT_SECRET in the root .env file}
+      DEEPTRACE_ASSISTANT_PROVIDER: ${DEEPTRACE_ASSISTANT_PROVIDER:-rules}
+      DEEPTRACE_GEMINI_API_KEY: ${DEEPTRACE_GEMINI_API_KEY:-}
+      DEEPTRACE_GEMINI_MODEL: ${DEEPTRACE_GEMINI_MODEL:-gemini-2.5-flash}
+    volumes:
+      - deeptrace-uploads:/tmp/deeptrace-uploads
+      - deeptrace-data:/data
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  deeptrace-uploads:
+  deeptrace-data:
+  deeptrace-pg:

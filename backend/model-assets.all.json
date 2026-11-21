@@ -1,0 +1,87 @@
+{
+  "profile": "all_models_poc_v1",
+  "asset_bytes": 563815130,
+  "assets": [
+    {
+      "path": "models/aasist/AASIST.pth",
+      "purpose": "AASIST",
+      "bytes": 1281532,
+      "sha256": "51d2d9cf0738172f61e2a384ec50a54a55363240f67c971ed55a92435bc1a1c0"
+    },
+    {
+      "path": "models/efficientnetb4/effnb4_best.pth",
+      "purpose": "EfficientNet-B4",
+      "bytes": 70979261,
+      "sha256": "74cbd82d7be1bf5e6adec717824274a95b4509b02e1e78401608d32b3cbeaf0f"
+    },
+    {
+      "path": "models/efficientnetb4/shape_predictor_81_face_landmarks.dat",
+      "purpose": "81-point face landmarks",
+      "bytes": 19743860,
+      "sha256": "8cae4375589dd915d9a0a881101bed1bbb4e9887e35e63b024388f1ca25ff869"
+    },
+    {
+      "path": "models/commfor/frontier.safetensors",
+      "purpose": "Community Forensics original frontier head",
+      "bytes": 87261988,
+      "sha256": "2f445aecc310caee9b55d3ae0aeebc404a32d72e5836e30523ce0a9a1720cd47"
+    },
+    {
+      "path": "models/commfor/config.json",
+      "purpose": "Community Forensics original release configuration",
+      "bytes": 1038,
+      "sha256": "17cc7d383a872107f43b8603e81081530ac86ef9fb4564e7f2c2ba34342989c1"
+    },
+    {
+      "path": "models/cnn_artifacts/blur_jpg_prob0.5.pth",
+      "purpose": "CNNDetection",
+      "bytes": 282442597,
+      "sha256": "3533f3e58a3b82215f21197f2faf4e99b911ec42a4a6e2d7823e04d5f3fd245a"
+    },
+    {
+      "path": "models/lfcc_lcnn/df_trained_network.pt",
+      "purpose": "LFCC-LCNN",
+      "bytes": 1122125,
+      "sha256": "7cee483813b118039cc3d63d24f744cf99303f5cfaffa5886eabecda91586b61"
+    },
+    {
+      "path": "models/softnet/CASME_micro_s1.hdf5",
+      "purpose": "SOFTNet CASME fold s1",
+      "bytes": 1288792,
+      "sha256": "5094d6ab73e11037a04a928b04551939b840416a12fbf5a8a07fe64386117ecd"
+    },
+    {
+      "path": "vendor/SoftNet-SpotME/Utils/shape_predictor_68_face_landmarks.dat",
+      "purpose": "68-point expression landmarks",
+      "bytes": 99693937,
+      "sha256": "fbdc2cb80eb9aa7a758672cbfdda32ba6300efe9b6e6c7a299ff7e736b11b92f"
+    }
+  ],
+  "sources": [
+    {
+      "path": "vendor/aasist",
+      "url": "https://github.com/clovaai/aasist",
+      "revision": "a04c9863f63d44471dde8a6abcb3b082b07cd1d1"
+    },
+    {
+      "path": "vendor/DeepfakeBench",
+      "url": "https://github.com/SCLBD/DeepfakeBench",
+      "revision": "f188b1c105465e2e5377eb536a95022ae0e4522d"
+    },
+    {
+      "path": "vendor/CNNDetection",
+      "url": "https://github.com/PeterWang512/CNNDetection",
+      "revision": "ea0b5622365e3a9cd31d1b54b6b5971131a839ab"
+    },
+    {
+      "path": "vendor/asvspoof2021",
+      "url": "https://github.com/asvspoof-challenge/2021",
+      "revision": "9b33f5eca887bd3bf629e3fb79428cd9bb7ac972"
+    },
+    {
+      "path": "vendor/SoftNet-SpotME",
+      "url": "https://github.com/genbing99/SoftNet-SpotME",
+      "revision": "dd43d1e1d5ae471998ceb3be3177e2d9517c58fd"
+    }
+  ]
+}

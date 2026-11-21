@@ -1,0 +1,8 @@
+{
+  "model_version": "FakeSTormer@c5b5f75100b878212a192c00013275f275f86182",
+  "checkpoint": "official-checkpoint.pth#sha256=REPLACE_AFTER_DOWNLOAD",
+  "model_score": 0.82,
+  "runtime_ms": 125.0,
+  "peak_gpu_memory_mb": 2048.0,
+  "sample_scores": []
+}

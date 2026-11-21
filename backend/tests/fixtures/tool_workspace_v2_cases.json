@@ -1,0 +1,504 @@
+[
+  {
+    "name": "functional clear",
+    "analysis": {
+      "id": "case",
+      "title": "clip",
+      "status": "AI_SCREENING_COMPLETE",
+      "owner": "officer",
+      "media_kind": "video",
+      "created_at": "",
+      "finding_count": 0,
+      "legacy_report_id": null,
+      "media": {
+        "filename": "clip.mp4",
+        "media_kind": "video",
+        "content_type": "video/mp4",
+        "size_bytes": 1,
+        "sha256": "abc",
+        "duration_seconds": 10,
+        "container": "mp4"
+      },
+      "model_runs": [
+        {
+          "id": "scene",
+          "modality": "video",
+          "model_name": "Community Forensics",
+          "model_version": "test",
+          "status": "functional",
+          "threshold": 0.5,
+          "raw_score": 0.1,
+          "calibrated_probability": null,
+          "calibration_version": null,
+          "preprocessing_version": "test",
+          "notes": [],
+          "development_mock": false
+        }
+      ],
+      "findings": [],
+      "comments": [],
+      "limitation": "Advisory only",
+      "development_mock": false
+    },
+    "expected": {
+      "decision": "not_flagged",
+      "title": "No signs of manipulation flagged",
+      "missing_checks": 0
+    }
+  },
+  {
+    "name": "boundary flag",
+    "analysis": {
+      "id": "case",
+      "title": "clip",
+      "status": "AI_SCREENING_COMPLETE",
+      "owner": "officer",
+      "media_kind": "video",
+      "created_at": "",
+      "finding_count": 0,
+      "legacy_report_id": null,
+      "media": {
+        "filename": "clip.mp4",
+        "media_kind": "video",
+        "content_type": "video/mp4",
+        "size_bytes": 1,
+        "sha256": "abc",
+        "duration_seconds": 10,
+        "container": "mp4"
+      },
+      "model_runs": [
+        {
+          "id": "scene",
+          "modality": "video",
+          "model_name": "Community Forensics",
+          "model_version": "test",
+          "status": "functional",
+          "threshold": 0.5,
+          "raw_score": 0.5,
+          "calibrated_probability": null,
+          "calibration_version": null,
+          "preprocessing_version": "test",
+          "notes": [],
+          "development_mock": false
+        }
+      ],
+      "findings": [],
+      "comments": [],
+      "limitation": "Advisory only",
+      "development_mock": false
+    },
+    "expected": {
+      "decision": "flagged",
+      "title": "Signs of possible manipulation flagged",
+      "missing_checks": 0
+    }
+  },
+  {
+    "name": "LFCC window flags below mean",
+    "analysis": {
+      "id": "case",
+      "title": "clip",
+      "status": "AI_SCREENING_COMPLETE",
+      "owner": "officer",
+      "media_kind": "video",
+      "created_at": "",
+      "finding_count": 0,
+      "legacy_report_id": null,
+      "media": {
+        "filename": "clip.mp4",
+        "media_kind": "video",
+        "content_type": "video/mp4",
+        "size_bytes": 1,
+        "sha256": "abc",
+        "duration_seconds": 10,
+        "container": "mp4"
+      },
+      "model_runs": [
+        {
+          "id": "scene",
+          "modality": "audio",
+          "model_name": "ASVspoof DF LFCC-LCNN",
+          "model_version": "test",
+          "status": "functional",
+          "threshold": 0.5,
+          "raw_score": 0.1,
+          "calibrated_probability": null,
+          "calibration_version": null,
+          "preprocessing_version": "test",
+          "notes": [],
+          "development_mock": false
+        }
+      ],
+      "findings": [
+        {
+          "id": "f",
+          "model_name": "ASVspoof DF LFCC-LCNN",
+          "modality": "audio",
+          "start_time": 4.0375,
+          "end_time": 8.075
+        }
+      ],
+      "comments": [],
+      "limitation": "Advisory only",
+      "development_mock": false
+    },
+    "expected": {
+      "decision": "flagged",
+      "title": "Signs of possible manipulation flagged",
+      "missing_checks": 0
+    }
+  },
+  {
+    "name": "CNN artifact flag",
+    "analysis": {
+      "id": "case",
+      "title": "clip",
+      "status": "AI_SCREENING_COMPLETE",
+      "owner": "officer",
+      "media_kind": "video",
+      "created_at": "",
+      "finding_count": 0,
+      "legacy_report_id": null,
+      "media": {
+        "filename": "clip.mp4",
+        "media_kind": "video",
+        "content_type": "video/mp4",
+        "size_bytes": 1,
+        "sha256": "abc",
+        "duration_seconds": 10,
+        "container": "mp4"
+      },
+      "model_runs": [
+        {
+          "id": "scene",
+          "modality": "video",
+          "model_name": "CNNDetection ResNet-50 (blur/JPEG)",
+          "model_version": "test",
+          "status": "functional",
+          "threshold": 0.5,
+          "raw_score": 0.7,
+          "calibrated_probability": null,
+          "calibration_version": null,
+          "preprocessing_version": "test",
+          "notes": [],
+          "development_mock": false
+        }
+      ],
+      "findings": [],
+      "comments": [],
+      "limitation": "Advisory only",
+      "development_mock": false
+    },
+    "expected": {
+      "decision": "flagged",
+      "title": "Signs of possible manipulation flagged",
+      "missing_checks": 0
+    }
+  },
+  {
+    "name": "unavailable incomplete",
+    "analysis": {
+      "id": "case",
+      "title": "clip",
+      "status": "AI_SCREENING_COMPLETE",
+      "owner": "officer",
+      "media_kind": "video",
+      "created_at": "",
+      "finding_count": 0,
+      "legacy_report_id": null,
+      "media": {
+        "filename": "clip.mp4",
+        "media_kind": "video",
+        "content_type": "video/mp4",
+        "size_bytes": 1,
+        "sha256": "abc",
+        "duration_seconds": 10,
+        "container": "mp4"
+      },
+      "model_runs": [
+        {
+          "id": "scene",
+          "modality": "video",
+          "model_name": "Community Forensics",
+          "model_version": "test",
+          "status": "unavailable",
+          "threshold": 0.5,
+          "raw_score": null,
+          "calibrated_probability": null,
+          "calibration_version": null,
+          "preprocessing_version": "test",
+          "notes": [],
+          "development_mock": false
+        }
+      ],
+      "findings": [],
+      "comments": [],
+      "limitation": "Advisory only",
+      "development_mock": false
+    },
+    "expected": {
+      "decision": "incomplete",
+      "title": "Screening incomplete",
+      "missing_checks": 1
+    }
+  },
+  {
+    "name": "partial flag remains flagged",
+    "analysis": {
+      "id": "case",
+      "title": "clip",
+      "status": "AI_SCREENING_COMPLETE",
+      "owner": "officer",
+      "media_kind": "video",
+      "created_at": "",
+      "finding_count": 0,
+      "legacy_report_id": null,
+      "media": {
+        "filename": "clip.mp4",
+        "media_kind": "video",
+        "content_type": "video/mp4",
+        "size_bytes": 1,
+        "sha256": "abc",
+        "duration_seconds": 10,
+        "container": "mp4"
+      },
+      "model_runs": [
+        {
+          "id": "scene",
+          "modality": "video",
+          "model_name": "Community Forensics",
+          "model_version": "test",
+          "status": "functional",
+          "threshold": 0.5,
+          "raw_score": 0.1,
+          "calibrated_probability": null,
+          "calibration_version": null,
+          "preprocessing_version": "test",
+          "notes": [],
+          "development_mock": false
+        },
+        {
+          "id": "error",
+          "modality": "audio",
+          "model_name": "AASIST",
+          "model_version": "test",
+          "status": "error",
+          "threshold": 0.5,
+          "raw_score": null,
+          "calibrated_probability": null,
+          "calibration_version": null,
+          "preprocessing_version": "test",
+          "notes": [],
+          "development_mock": false
+        }
+      ],
+      "findings": [
+        {
+          "id": "f",
+          "model_name": "Community Forensics",
+          "modality": "video",
+          "start_time": 0,
+          "end_time": 1
+        }
+      ],
+      "comments": [],
+      "limitation": "Advisory only",
+      "development_mock": false
+    },
+    "expected": {
+      "decision": "flagged",
+      "title": "Signs of possible manipulation flagged",
+      "missing_checks": 1
+    }
+  },
+  {
+    "name": "no applicable results",
+    "analysis": {
+      "id": "case",
+      "title": "clip",
+      "status": "AI_SCREENING_COMPLETE",
+      "owner": "officer",
+      "media_kind": "video",
+      "created_at": "",
+      "finding_count": 0,
+      "legacy_report_id": null,
+      "media": {
+        "filename": "clip.mp4",
+        "media_kind": "video",
+        "content_type": "video/mp4",
+        "size_bytes": 1,
+        "sha256": "abc",
+        "duration_seconds": 10,
+        "container": "mp4"
+      },
+      "model_runs": [
+        {
+          "id": "scene",
+          "modality": "video",
+          "model_name": "Community Forensics",
+          "model_version": "test",
+          "status": "not_applicable",
+          "threshold": 0.5,
+          "raw_score": null,
+          "calibrated_probability": null,
+          "calibration_version": null,
+          "preprocessing_version": "test",
+          "notes": [],
+          "development_mock": false
+        }
+      ],
+      "findings": [],
+      "comments": [],
+      "limitation": "Advisory only",
+      "development_mock": false
+    },
+    "expected": {
+      "decision": "incomplete",
+      "title": "Screening incomplete",
+      "missing_checks": 0
+    }
+  },
+  {
+    "name": "functional limited coverage gates workspace v2",
+    "analysis": {
+      "id": "case",
+      "title": "clip",
+      "status": "AI_SCREENING_COMPLETE",
+      "owner": "officer",
+      "media_kind": "video",
+      "created_at": "",
+      "finding_count": 0,
+      "legacy_report_id": null,
+      "media": {
+        "filename": "clip.mp4",
+        "media_kind": "video",
+        "content_type": "video/mp4",
+        "size_bytes": 1,
+        "sha256": "abc",
+        "duration_seconds": 10,
+        "container": "mp4"
+      },
+      "model_runs": [
+        {
+          "id": "scene",
+          "modality": "video",
+          "model_name": "Community Forensics",
+          "model_version": "test",
+          "status": "functional",
+          "threshold": 0.5,
+          "raw_score": 0.1,
+          "calibrated_probability": null,
+          "calibration_version": null,
+          "preprocessing_version": "test",
+          "notes": [
+            "LIMITED_FACE_COVERAGE"
+          ],
+          "development_mock": false
+        }
+      ],
+      "findings": [],
+      "comments": [],
+      "limitation": "Advisory only",
+      "development_mock": false
+    },
+    "expected": {
+      "decision": "incomplete",
+      "title": "Screening incomplete",
+      "missing_checks": 0
+    }
+  },
+  {
+    "name": "stub without development marker incomplete",
+    "analysis": {
+      "id": "case",
+      "title": "clip",
+      "status": "AI_SCREENING_COMPLETE",
+      "owner": "officer",
+      "media_kind": "video",
+      "created_at": "",
+      "finding_count": 0,
+      "legacy_report_id": null,
+      "media": {
+        "filename": "clip.mp4",
+        "media_kind": "video",
+        "content_type": "video/mp4",
+        "size_bytes": 1,
+        "sha256": "abc",
+        "duration_seconds": 10,
+        "container": "mp4"
+      },
+      "model_runs": [
+        {
+          "id": "scene",
+          "modality": "video",
+          "model_name": "Community Forensics",
+          "model_version": "test",
+          "status": "stub",
+          "threshold": 0.5,
+          "raw_score": 0.1,
+          "calibrated_probability": null,
+          "calibration_version": null,
+          "preprocessing_version": "test",
+          "notes": [],
+          "development_mock": false
+        }
+      ],
+      "findings": [],
+      "comments": [],
+      "limitation": "Advisory only",
+      "development_mock": false
+    },
+    "expected": {
+      "decision": "incomplete",
+      "title": "Screening incomplete",
+      "missing_checks": 1
+    }
+  },
+  {
+    "name": "development mock overrides flags",
+    "analysis": {
+      "id": "case",
+      "title": "clip",
+      "status": "AI_SCREENING_COMPLETE",
+      "owner": "officer",
+      "media_kind": "video",
+      "created_at": "",
+      "finding_count": 0,
+      "legacy_report_id": null,
+      "media": {
+        "filename": "clip.mp4",
+        "media_kind": "video",
+        "content_type": "video/mp4",
+        "size_bytes": 1,
+        "sha256": "abc",
+        "duration_seconds": 10,
+        "container": "mp4"
+      },
+      "model_runs": [
+        {
+          "id": "scene",
+          "modality": "video",
+          "model_name": "Community Forensics",
+          "model_version": "test",
+          "status": "functional",
+          "threshold": 0.5,
+          "raw_score": 0.9,
+          "calibrated_probability": null,
+          "calibration_version": null,
+          "preprocessing_version": "test",
+          "notes": [],
+          "development_mock": false
+        }
+      ],
+      "findings": [],
+      "comments": [],
+      "limitation": "Advisory only",
+      "development_mock": true
+    },
+    "expected": {
+      "decision": "demo",
+      "title": "Demonstration results only",
+      "missing_checks": 0
+    }
+  }
+]

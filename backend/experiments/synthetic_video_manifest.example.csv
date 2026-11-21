@@ -1,0 +1,5 @@
+video_id,path,label,task,generator,dataset,scenario,degradation,source_id,split,frame_scores,temporal_score
+real-001,/data/real-001.mp4,real,synthetic_video,unknown,genvidbench,surveillance_like,original,source-real-001,validation,"[0.08,0.12,0.10]",
+fake-001,/data/fake-001.mp4,synthetic,synthetic_video,unknown,genvidbench,surveillance_like,original,source-fake-001,validation,"[0.72,0.81,0.77]",
+real-002,/data/real-002.mp4,real,synthetic_video,unknown,genvidbench,phone_video,h264_mild,source-real-002,test,"[0.11,0.19,0.16]",
+fake-002,/data/fake-002.mp4,synthetic,synthetic_video,unknown,genvidbench,phone_video,h264_mild,source-fake-002,test,"[0.68,0.83,0.79]",

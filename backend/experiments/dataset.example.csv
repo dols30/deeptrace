@@ -1,0 +1,3 @@
+id,path,label
+real-001,/cluster/datasets/deeptrace/real/example.wav,0
+synthetic-001,/cluster/datasets/deeptrace/synthetic/example.wav,1

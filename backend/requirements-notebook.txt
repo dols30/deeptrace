@@ -1,0 +1,6 @@
+# Extras for notebooks/analyze_upload.ipynb, installed into the API environment (.venv).
+ipykernel==7.4.0
+ipywidgets==8.1.9
+matplotlib==3.11.2
+numpy==2.5.3
+pillow==12.3.0

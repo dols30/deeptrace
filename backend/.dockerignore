@@ -1,0 +1,16 @@
+.venv*
+.env*
+*.pem
+*.key
+data/
+.pytest_cache
+__pycache__
+uploads
+experiments
+tests
+docs
+**/.git
+**/.DS_Store
+*.pyc
+*.err
+*.out

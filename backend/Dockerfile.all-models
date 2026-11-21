@@ -1,0 +1,16 @@
+# Build the unchanged core Dockerfile first as deeptrace-backend:core.
+ARG CORE_IMAGE=deeptrace-backend:core
+FROM ${CORE_IMAGE}
+COPY requirements-models-all.txt /app/requirements-models-all.txt
+RUN pip uninstall -y opencv-python-headless \
+    && pip install --no-cache-dir -r /app/requirements-models-all.txt \
+    && pip check
+COPY models /app/models
+COPY vendor/aasist/.deeptrace-revision /app/vendor/aasist/.deeptrace-revision
+COPY vendor/DeepfakeBench/.deeptrace-revision /app/vendor/DeepfakeBench/.deeptrace-revision
+COPY vendor/CNNDetection /app/vendor/CNNDetection
+COPY vendor/asvspoof2021 /app/vendor/asvspoof2021
+COPY vendor/SoftNet-SpotME/training.py vendor/SoftNet-SpotME/extraction_preprocess.py vendor/SoftNet-SpotME/README.md vendor/SoftNet-SpotME/.deeptrace-revision /app/vendor/SoftNet-SpotME/
+COPY vendor/SoftNet-SpotME/Utils/shape_predictor_68_face_landmarks.dat /app/vendor/SoftNet-SpotME/Utils/shape_predictor_68_face_landmarks.dat
+COPY model-assets.all.json /app/model-assets.all.json
+COPY scripts/verify_all_models.py /app/scripts/verify_all_models.py

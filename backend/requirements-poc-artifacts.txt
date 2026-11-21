@@ -1,0 +1,8 @@
+# Optional CPU PoC extensions. Install the base model requirements first, then
+# uninstall opencv-python-headless (both distributions share cv2) before this file.
+torchaudio==2.7.1
+opencv-contrib-python-headless==4.10.0.84
+tensorflow==2.16.2
+keras==3.15.1
+h5py==3.14.0
+pandas==1.5.3
