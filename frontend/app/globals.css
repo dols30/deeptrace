@@ -2174,8 +2174,32 @@ fieldset label { display:flex; gap:8px; align-items:center; }
 .intake-experience .primary-button:disabled { color:var(--muted); background:var(--surface-3); }
 .intake-loading { display:flex; align-items:center; gap:10px; margin-top:12px; padding:10px 0; border:0; border-top:1px solid var(--intake-line); border-radius:0; background:transparent; box-shadow:none; color:var(--ink-2); text-align:left; }
 .intake-loading > div { display:flex; align-items:center; gap:10px; }
-.intake-loading-copy { display:grid; gap:2px; }
-.intake-loading-copy small { font-size:0.875rem; color:var(--muted); }
+.intake-loading { flex-wrap:wrap; }
+.screening-model-list {
+  flex-basis:100%;
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  margin:0;
+  padding:0 0 0 38px;
+  list-style:none;
+}
+.screening-model-list li {
+  display:inline-flex;
+  align-items:baseline;
+  flex-wrap:wrap;
+  gap:4px 8px;
+  padding:5px 9px;
+  border:1px solid var(--line);
+  border-radius:8px;
+  background:var(--surface);
+  color:var(--ink);
+  font-size:0.875rem;
+  overflow-wrap:anywhere;
+  animation:fx-enter var(--motion-base) var(--ease-out) both;
+  animation-delay:calc(var(--model-index) * 35ms);
+}
+.screening-model-list small { color:var(--muted); font-size:0.875rem; }
 .intake-loading .trace-loading-mark { width:28px; height:28px; background:var(--surface-2); }
 :root[data-theme="dark"] .intake-experience { --intake-mark:#8eb4b0; }
 .dash-main .report { padding:0; border:0; border-radius:0; background:transparent; box-shadow:none; }
@@ -2186,6 +2210,7 @@ fieldset label { display:flex; gap:8px; align-items:center; }
   .intake-experience { margin-top:4px; }
   .intake-experience .drop-zone { min-height:270px; padding:20px; }
   .intake-experience .selected-file { align-items:flex-start; }
+  .screening-model-list { padding-left:0; }
 }
 
 @keyframes trace-flow { from { stroke-dashoffset:642; } to { stroke-dashoffset:0; } }

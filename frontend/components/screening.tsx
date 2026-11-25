@@ -1,11 +1,24 @@
 'use client';
-import {useEffect, useRef, useState} from 'react';
+import {useEffect, useRef, useState, type CSSProperties} from 'react';
 import {analyze, formatBytes, type Report} from '../lib/api';
 import {getModelInfo} from '../lib/workflow';
 import {useAuth} from './auth';
 import {CaseChat} from './case-chat';
+import {analysisMethods, methodsForMedia, type ModelInformationData} from './model-information';
 import {ReportView} from './report';
 import {TraceLoadingMark} from './trace/trace-mark';
+
+const MODEL_NAMES: Record<string, string> = {
+  efficientnetb4: 'EfficientNet-B4',
+  effort: 'Effort',
+  community_forensics: 'Community Forensics',
+  aasist: 'AASIST',
+  'aasist-l': 'AASIST-L',
+  nes2net: 'NES2Net',
+  'cnndetection resnet-50': 'CNNDetection',
+  'lfcc-lcnn (asvspoof df)': 'LFCC-LCNN',
+  'softnet (casme micro s1)': 'SOFTNet',
+};
 
 export function Screening() {
   const auth = useAuth();
@@ -15,7 +28,7 @@ export function Screening() {
   const [drag, setDrag] = useState(false);
   const [error, setError] = useState('');
   const [report, setReport] = useState<Report | null>(null);
-  const [modelCount, setModelCount] = useState(0);
+  const [modelInfo, setModelInfo] = useState<ModelInformationData | null>(null);
   const lock = useRef(false);
   const input = useRef<HTMLInputElement>(null);
 
@@ -23,16 +36,10 @@ export function Screening() {
   useEffect(() => {
     if (!token) return;
     let active = true;
-    getModelInfo(token).then(models => {
-      const checks = [
-        models.video_configured,
-        models.scene_configured,
-        models.audio_configured,
-        ...(models.supplementary_methods ?? []).map(method => method.configured),
-      ];
-      if (active) setModelCount(checks.filter(Boolean).length);
+    getModelInfo(token).then(info => {
+      if (active) setModelInfo(info);
     }).catch(() => {
-      if (active) setModelCount(0);
+      if (active) setModelInfo(null);
     });
     return () => { active = false; };
   }, [token]);
@@ -46,6 +53,11 @@ export function Screening() {
     setPreview(url);
     return () => URL.revokeObjectURL(url);
   }, [file]);
+
+  const configuredModels = busy && modelInfo ? analysisMethods(modelInfo).filter(method => method.configured) : [];
+  const applicableTasks = new Set(busy && file && modelInfo
+    ? methodsForMedia(modelInfo, file.type.startsWith('video') ? 'video' : 'audio').map(method => method.task)
+    : []);
 
   const choose = (next: File | null) => {
     if (lock.current) return;
@@ -157,11 +169,16 @@ export function Screening() {
         <section className="loading-panel intake-loading" role="status" aria-live="polite">
           <div>
             <TraceLoadingMark size={28} />
-            <div className="intake-loading-copy">
-              <strong>Analyzing file</strong>
-              {modelCount > 0 && <small>{modelCount} {modelCount === 1 ? 'model' : 'models'} available</small>}
-            </div>
+            <strong>Analyzing file</strong>
           </div>
+          {configuredModels.length > 0 && <ul className="screening-model-list" role="list" aria-label="Configured models">
+            {configuredModels.map((method, index) => (
+              <li key={method.task} title={method.task} style={{'--model-index': index} as CSSProperties}>
+                {MODEL_NAMES[method.model.toLowerCase()] ?? method.model}
+                {!applicableTasks.has(method.task) && <small>Video only</small>}
+              </li>
+            ))}
+          </ul>}
         </section>
       )}
 

@@ -1,5 +1,5 @@
 import {afterEach,beforeEach,expect,it,vi} from 'vitest';
-import {cleanup,render,screen,fireEvent,waitFor} from '@testing-library/react';
+import {cleanup,render,screen,fireEvent,waitFor,within} from '@testing-library/react';
 import {Screening} from './screening';
 import {ReportView} from './report';
 import type {Report} from '../lib/api';
@@ -24,7 +24,7 @@ beforeEach(()=>{
   listComments.mockResolvedValue([]);
   getNotebook.mockResolvedValue({report_id:'test',author:'user',body:'',updated_at:'2026-09-06'});
   getReportMedia.mockResolvedValue(new Blob(['media']));
-  getModelInfo.mockResolvedValue({video_configured: true, audio_configured: true, scene_configured: true});
+  getModelInfo.mockRejectedValue(new Error('offline'));
 });
 afterEach(()=>{cleanup();authState.token=null;authState.role=null;vi.clearAllMocks();});
 it('starts clean instead of restoring a previous report',()=>{
@@ -54,7 +54,13 @@ it('shows the model count during screening and opens the assistant for the compl
     video_configured: true,
     audio_configured: true,
     scene_configured: true,
-    supplementary_methods: [{configured: true}, {configured: true}, {configured: true}],
+    video_model: 'efficientnetb4',
+    audio_model: 'aasist',
+    supplementary_methods: [
+      {task: 'GAN artifacts', model: 'CNNDetection', configured: true},
+      {task: 'Vocoder artifacts', model: 'LFCC-LCNN', configured: true},
+      {task: 'Micro-expression intervals', model: 'SOFTNet', configured: true},
+    ],
   });
   askAssistant.mockResolvedValue({answer: 'Review the results in context.', citations: []});
   let finish!: (result: Report) => void;
@@ -64,7 +70,11 @@ it('shows the model count during screening and opens the assistant for the compl
   fireEvent.change(screen.getByLabelText('Choose media file'), {target: {files: [file]}});
   fireEvent.click(screen.getByRole('button', {name: 'Analyze file'}));
 
-  expect(await screen.findByText('6 models available')).toBeTruthy();
+  const models = within(await screen.findByRole('list', {name: 'Configured models'}));
+  for (const name of ['EfficientNet-B4', 'Community Forensics', 'AASIST', 'CNNDetection', 'LFCC-LCNN', 'SOFTNet']) {
+    expect(models.getByText(name)).toBeTruthy();
+  }
+  expect(models.getAllByText('Video only')).toHaveLength(4);
   expect(screen.queryByRole('button', {name: 'Open case assistant'})).toBeNull();
 
   finish({...report, analysis_id: 'case-123'});
@@ -72,7 +82,7 @@ it('shows the model count during screening and opens the assistant for the compl
   fireEvent.click(screen.getByRole('button', {name: 'Summarize the findings'}));
   expect(await screen.findByText('Review the results in context.')).toBeTruthy();
   expect(askAssistant).toHaveBeenCalledWith('case-123', 'Summarize the findings', 'token', []);
-  expect(screen.queryByText('6 models available')).toBeNull();
+  expect(screen.queryByRole('list', {name: 'Configured models'})).toBeNull();
 
   fireEvent.click(screen.getByRole('button', {name: 'New screening'}));
   expect(screen.queryByRole('button', {name: /case assistant/i})).toBeNull();
