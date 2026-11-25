@@ -70,7 +70,6 @@ export function ModelInformation({data}: {data: ModelInformationData}) {
       </section>
     </div>
     <aside className="model-guidance" aria-label="Model limitations and terminology">
-      <p>{data.note}</p>
       <Terms/>
     </aside>
   </div>;
