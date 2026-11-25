@@ -1,21 +1,31 @@
 import type {getModelInfo} from '../lib/workflow';
 import {Terms} from './terms';
 
-type ModelInformationData = Awaited<ReturnType<typeof getModelInfo>>;
+export type ModelInformationData = Awaited<ReturnType<typeof getModelInfo>>;
+export type AnalysisMethod = {task: string; model: string; configured?: boolean};
 
-export function ModelInformation({data}: {data: ModelInformationData}) {
-  const detectors = [
+// Methods that need video frames. Everything else (speech spoofing, vocoder artifacts) runs on audio,
+// including the audio track extracted from a video.
+const VIDEO_ONLY = new Set(['Face manipulation', 'Generated imagery', 'GAN artifacts', 'Micro-expression intervals']);
+
+export function analysisMethods(data: ModelInformationData): AnalysisMethod[] {
+  return [
     {task: 'Face manipulation', model: data.video_model, configured: data.video_configured},
     {task: 'Generated imagery', model: data.scene_model ?? 'community_forensics', configured: data.scene_configured},
     {task: 'Speech spoofing', model: data.audio_model, configured: data.audio_configured},
     ...(data.supplementary_methods ?? []),
   ];
+}
+
+/** Configured methods the backend will run for a file of this media kind. */
+export function methodsForMedia(data: ModelInformationData, kind: 'audio' | 'video'): AnalysisMethod[] {
+  return analysisMethods(data).filter(method => method.configured && (kind === 'video' || !VIDEO_ONLY.has(method.task)));
+}
+
+export function ModelInformation({data}: {data: ModelInformationData}) {
+  const detectors = analysisMethods(data);
 
   return <div className="model-page">
-    <header className="model-page-heading">
-      <h1>Models</h1>
-      <p>Detector configuration, screening rules, and media preparation.</p>
-    </header>
     <section className="model-panel" aria-labelledby="model-detectors-title">
       <header className="model-panel-heading"><h2 id="model-detectors-title">Analysis methods</h2></header>
       <div className="model-detector-columns" aria-hidden="true"><span>Screening task</span><span>Model identifier</span><span>Configuration</span></div>

@@ -4,10 +4,9 @@ import importlib
 import json
 import shutil
 import subprocess
-import sys
 from time import perf_counter
 from pathlib import Path
-from common import checkpoint_id, probability, revision, run
+from common import add_sys_path, cached, checkpoint_id, file_key, probability, revision, run
 from audio_windows import windows, WINDOW_SAMPLES, SAMPLE_RATE
 
 
@@ -51,7 +50,7 @@ def load_audio(path, librosa, np):
         return np.frombuffer(decoded.stdout, dtype="<f4").copy(), "ffmpeg"
 
 
-def main():
+def main(argv=None):
     profile = {}
     workload = {}
     parser = argparse.ArgumentParser(description=__doc__)
@@ -62,12 +61,12 @@ def main():
     parser.add_argument('--explain', action='store_true')
     parser.add_argument('--ig-steps', type=int, default=8)
     parser.add_argument('--window-mode', choices=['first', 'full'], default='first')
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     repo = args.repo.resolve()
     name = 'AASIST-L' if args.variant == 'aasist-l' else 'AASIST'
     config_path = repo / 'config' / (name + '.conf')
     config = json.loads(config_path.read_text())['model_config']
-    sys.path.insert(0, str(repo))
+    add_sys_path(repo)
     started = perf_counter()
     import librosa
     import numpy as np
@@ -77,11 +76,16 @@ def main():
     workload.update({'torch_num_threads': torch.get_num_threads(),
         'torch_num_interop_threads': torch.get_num_interop_threads(), 'batch_size': 1})
     started = perf_counter()
-    model = importlib.import_module('models.' + config['architecture']).Model(config).to(args.device)
-    state = torch.load(str(args.weights), map_location='cpu', weights_only=True)
-    state = state.get('state_dict', state)
-    model.load_state_dict({k.removeprefix('module.'): v for k, v in state.items()}, strict=True)
-    model.eval()
+
+    def load():
+        model = importlib.import_module('models.' + config['architecture']).Model(config).to(args.device)
+        state = torch.load(str(args.weights), map_location='cpu', weights_only=True)
+        state = state.get('state_dict', state)
+        model.load_state_dict({k.removeprefix('module.'): v for k, v in state.items()}, strict=True)
+        model.eval()
+        return model
+
+    model = cached(('aasist', str(repo), args.device, file_key(args.weights, config_path)), load)
     profile['model loading'] = perf_counter() - started
     started = perf_counter()
     audio, decoder = load_audio(args.audio, librosa, np)

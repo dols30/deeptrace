@@ -93,6 +93,13 @@ def test_sandbox_profile_requires_real_access_configuration():
     assert config.auth_enabled
 
 
+def test_sandbox_allows_the_in_account_bedrock_assistant_but_not_gemini():
+    access=dict(_env_file=None,deployment_mode="sandbox",auth_enabled=True,employee_username="test",employee_password="test-only",jwt_secret="x"*32)
+    assert Settings(**access,assistant_provider="bedrock").assistant_provider=="bedrock"
+    with pytest.raises(ValueError,match="inside the AWS account"):
+        Settings(**access,assistant_provider="gemini")
+
+
 def test_legacy_report_remains_readable():
     from deeptrace.reporting import build_report
     payload=build_report(media(),[]).model_dump()

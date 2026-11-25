@@ -1,10 +1,9 @@
 """DeepfakeBench EfficientNet-B4 with upstream face alignment and strict FF++ weights."""
 import argparse
 import importlib.util
-import sys
 from time import perf_counter
 from pathlib import Path
-from common import checkpoint_id, probability, revision, run
+from common import add_sys_path, cached, checkpoint_id, file_key, probability, revision, run
 from face_coverage import FaceCoverageTracker
 
 
@@ -15,7 +14,7 @@ def load_module(name, path):
     return module
 
 
-def main():
+def main(argv=None):
     profile = {}
     workload = {}
     parser = argparse.ArgumentParser(description=__doc__)
@@ -26,9 +25,9 @@ def main():
         help='Compute Grad-CAM and the face-alignment matrix for each scored crop.')
     parser.add_argument('--explain-dir', type=Path,
         help='When --explain is set, write the crop, the crop overlay, and the frame overlay here.')
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     repo = args.repo.resolve()
-    sys.path.insert(0, str(repo / 'training'))
+    add_sys_path(repo / 'training')
     started = perf_counter()
     import cv2
     import dlib
@@ -38,18 +37,24 @@ def main():
     workload.update({'torch_num_threads': torch.get_num_threads(),
         'torch_num_interop_threads': torch.get_num_interop_threads(), 'batch_size': 1})
     started = perf_counter()
-    network = load_module('deeptrace_effnet', repo / 'training/networks/efficientnetb4.py')
-    preprocessing = load_module('deeptrace_face', repo / 'preprocessing/preprocess.py')
-    model = network.EfficientNetB4(dict(num_classes=2, inc=3, dropout=False, mode='Original', pretrained=False))
-    state = torch.load(str(args.weights), map_location='cpu', weights_only=True)
-    state = state.get('state_dict', state)
-    state = {k.removeprefix('module.'): v for k, v in state.items()}
-    # Official detector checkpoints contain only the backbone's learned parameters.
-    state = {k.removeprefix('backbone.'): v for k, v in state.items()}
-    model.load_state_dict(state, strict=True)
-    model.to(args.device).eval()
-    detector = FaceCoverageTracker(dlib.get_frontal_face_detector())
-    predictor = dlib.shape_predictor(str(args.landmarks))
+
+    def load():
+        network = load_module('deeptrace_effnet', repo / 'training/networks/efficientnetb4.py')
+        preprocessing = load_module('deeptrace_face', repo / 'preprocessing/preprocess.py')
+        model = network.EfficientNetB4(dict(num_classes=2, inc=3, dropout=False, mode='Original', pretrained=False))
+        state = torch.load(str(args.weights), map_location='cpu', weights_only=True)
+        state = state.get('state_dict', state)
+        state = {k.removeprefix('module.'): v for k, v in state.items()}
+        # Official detector checkpoints contain only the backbone's learned parameters.
+        state = {k.removeprefix('backbone.'): v for k, v in state.items()}
+        model.load_state_dict(state, strict=True)
+        model.to(args.device).eval()
+        return preprocessing, model, dlib.get_frontal_face_detector(), dlib.shape_predictor(str(args.landmarks))
+
+    preprocessing, model, face_detector, predictor = cached(
+        ('efficientnetb4', str(repo), args.device, file_key(args.weights, args.landmarks)), load)
+    # The tracker holds per-request coverage counts, so it is never cached.
+    detector = FaceCoverageTracker(face_detector)
     profile['model + face detector loading'] = perf_counter() - started
     paths = sorted(args.frames.glob('frame_*.jpg'))
     if not paths:

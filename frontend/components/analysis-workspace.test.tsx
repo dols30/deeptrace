@@ -54,7 +54,7 @@ it('shows advisory findings and records an investigator disposition', async () =
     human_disposition: 'uncertain', attribution: null, reviews: [],
   });
   render(<AnalysisWorkspace id="case-1"/>);
-  expect(await screen.findByRole('heading', {name: 'Synthetic speech', level: 3})).toBeTruthy();
+  expect(await screen.findByText('Possible audio manipulation signal')).toBeTruthy();
   const viewer = screen.getByRole('region', {name: 'Media viewer'});
   const timeline = screen.getByRole('region', {name: 'Evidence timeline'});
   const media = viewer.querySelector('video, audio');
@@ -68,7 +68,7 @@ it('shows advisory findings and records an investigator disposition', async () =
   expect(screen.getByText(/Authenticity has not been established/)).toBeTruthy();
   expect(screen.queryByText(/deepfake confirmed/i)).toBeNull();
   expect(screen.getByRole('link', {name: 'Review report'}).getAttribute('href')).toBe('/analyses/case-1/review');
-  fireEvent.click(screen.getByRole('button', {name: 'Finding 1, Synthetic speech at 00:01.2'}));
+  fireEvent.click(screen.getByRole('button', {name: 'Review Synthetic speech at 00:01.2'}));
   expect((media as HTMLMediaElement).currentTime).toBeCloseTo(1.2);
   expect(screen.getByRole('tab', {name: 'Officer summary'}).getAttribute('aria-selected')).toBe('true');
   fireEvent.click(screen.getByRole('radio', {name: 'Uncertain'}));
@@ -105,7 +105,7 @@ it('shows the face crop beside Grad-CAM and steps to the next explained frame', 
   expect(screen.getAllByText('0.77').length).toBeGreaterThan(0);
   expect(screen.queryByText(/proves the video is fake/i)).toBeNull();
   fireEvent.click(screen.getByRole('button', {name: 'Next explained frame'}));
-  expect(screen.getByRole('combobox', {name: 'Finding'})).toHaveProperty('value', '1');
+  expect(screen.getByRole('button', {name: /Finding 2/})).toHaveProperty('className', expect.stringContaining('selected'));
 });
 
 it('shows signed temporal occlusion and keeps the other audio views secondary', async () => {

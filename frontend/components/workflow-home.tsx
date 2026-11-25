@@ -67,7 +67,6 @@ export function QueueContent({data, role}: {data: AnalysisSummary[]; role: Role 
     final: data.filter(item => bucket(item.status) === 'final').length,
   };
   return <PageFrame>
-    <header className="workspace-heading"><h1>Workspace</h1><p>Find a case or filter by review stage.</p></header>
     <div className="work-stats">
       <article className="work-stat"><b>{data.length}</b><span>Open cases</span></article>
       <article className="work-stat"><b>{counts.screening}</b><span>Screening</span></article>

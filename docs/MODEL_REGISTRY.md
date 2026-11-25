@@ -72,7 +72,7 @@ The opt-in rule requires the recorded EfficientNet source/checkpoint and 81-poin
 | `detector_id` / `task` | `community_forensics` / `synthetic_video` |
 | Selected by | Always constructed; runs when `DEEPTRACE_SCENE_COMMAND` is set |
 | Runner / adapter | `backend/scripts/inference/commfor.py` / `SceneVideoAnalyzer` |
-| Checkpoint | `models/commfor/frontier.safetensors` + `config.json`, reported revision `16db135220b318d811b207db576d90368980b595` (`Thermostatic/community-forensics-frontier-detector-2026-08`, fine-tune of `OwensLab/commfor-model-384`, MIT per config). Fetched by `backend/scripts/download_public_assets.sh community-forensics` and checked against the all-model asset manifest |
+| Checkpoint | `models/commfor/frontier.safetensors` + `config.json`, reported revision `16db135220b318d811b207db576d90368980b595` (`Thermostatic/community-forensics-frontier-detector-2026-08`, fine-tune of `OwensLab/commfor-model-384`, MIT per config). **TODO: no script in the repo downloads this checkpoint**; provenance relies on the local `.sha256`/`.revision` files |
 | Training data | Runner docstring: fine-tuned "on recent generators with JPEG/WebP laundering augmentation". Specific datasets: **unknown** |
 | Input | Same sampled JPEG frames as the face model |
 | Preprocessing | RGB → bilinear resize short edge to 440 → center crop 384×384 → `/255` → ImageNet mean/std |
@@ -136,10 +136,11 @@ Code in `backend/deeptrace/experimental/` and `backend/experiments/`; result typ
 ## Non-detector models
 
 - **Case assistant** (`ml/assistant.py`, `ml/gemini_assistant.py`): default `RulesCaseAssistant` (deterministic, answers from stored findings). Optional Gemini (`DEEPTRACE_GEMINI_MODEL`, default `gemini-2.5-flash`) receives the recording when ≤ 80 MB; falls back to rules on error. It does not produce detection scores.
+- **Bedrock case assistant** (`ml/bedrock_assistant.py`, `DEEPTRACE_ASSISTANT_PROVIDER=bedrock`): two models with separate jobs. The video model (`DEEPTRACE_BEDROCK_VIDEO_MODEL`, default Amazon Nova Lite) writes a JSON timeline of what is visible, once per recording, cached in the `media_observations` table keyed by media SHA-256, model ID and prompt version (`timeline-v1`). The answer model (`DEEPTRACE_BEDROCK_ANSWER_MODEL`, default Claude Haiku 4.5) never receives the recording; it reads the case record and the timeline and may call `inspect_video` (≤ 3 calls per question, ≤ 60 s per range). Observations are descriptions of the file, never findings or authenticity judgments. Nova Lite does not hear audio. Video is sent inline (≤ 20 MB); audio-only or larger files are answered from the case record. Falls back to rules on error. It does not produce detection scores.
 
 ## Rules for changing models
 
-For contributions, new detectors are opt-in, preserve the runner JSON contract and `ComponentResult` semantics, record checkpoint provenance (URL, revision, SHA-256, license, training data), benchmark at the independent video/utterance level, and never become the default implicitly.
+See [`backend/AGENTS.md`](../backend/AGENTS.md). In short: new detectors are opt-in, preserve the runner JSON contract and `ComponentResult` semantics, record checkpoint provenance (URL, revision, SHA-256, license, training data), benchmark at the independent video/utterance level, and never become the default implicitly.
 
 
 ## Extended PoC inference and descriptive methods (October 22, 2026)

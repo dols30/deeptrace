@@ -75,15 +75,16 @@ it('does not treat an inapplicable check as a failed check', () => {
   expect(screen.getByText('Not applicable to this recording')).toBeTruthy();
 });
 
-it('shows each flagged window without scores and opens the selected finding', () => {
+it('describes contiguous flagged moments without scores and opens the first moment for review', () => {
   const data = analysis();
   data.findings = [0, 1].map(index => ({id: `finding-${index}`, model_name: 'Community Forensics', modality: 'video', start_time: index, end_time: index + 1}) as AnalysisDetail['findings'][number]);
   const onReview = vi.fn();
   render(<OfficerSummary analysis={data} onReviewFinding={onReview}/>);
   expect(screen.getByText(/The whole-image check flagged sampled images/)).toBeTruthy();
-  const button = screen.getByRole('button', {name: 'Finding 2, AI-generated video at 00:01.0'});
+  const button = screen.getByRole('button', {name: 'Review AI-generated video at 00:00.0'});
+  expect(button.textContent).toContain('00:02.0');
   fireEvent.click(button);
-  expect(onReview).toHaveBeenCalledWith(data.findings[1]);
+  expect(onReview).toHaveBeenCalledWith(data.findings[0]);
   expect(screen.queryByText('0.27')).toBeNull();
 });
 

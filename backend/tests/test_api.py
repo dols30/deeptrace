@@ -76,14 +76,11 @@ def test_health() -> None:
     assert client.get("/health").json() == {"status": "ok"}
 
 
-@pytest.mark.parametrize('parallel', [False, True])
-def test_opt_in_artifacts_persist_with_the_existing_workflow(monkeypatch,tmp_path,parallel):
+def test_opt_in_artifacts_persist_with_the_existing_workflow(monkeypatch,tmp_path):
     import json
     import sys
-    from threading import Event
     from deeptrace.schemas import MediaMetadata
     monkeypatch.setattr(settings,'auth_enabled',False)
-    monkeypatch.setattr(settings, 'parallel_review_checks', parallel)
     for name in ('efficientnet_command','scene_command','aasist_command','review_signals_command'):
         monkeypatch.setattr(settings,name,None)
     def command(name,payload):
@@ -99,29 +96,6 @@ def test_opt_in_artifacts_persist_with_the_existing_workflow(monkeypatch,tmp_pat
         'technique':'micro_expression','modality':'video','title':'Micro-expression intervals',
         'status':'measured','method':'SOFTNet','summary':'Candidate interval',
         'intervals':[{'start_time':1,'end_time':1.4,'regression_score':.6}]}))
-    if parallel:
-        review_started, softnet_started = Event(), Event()
-        review = api.analyze_review_signals
-        softnet = api.analyze_micro_expression
-        gan = api.GANArtifactAnalyzer.analyze
-
-        def record_review(_command, *args):
-            review_started.set()
-            return review(None, *args)
-
-        def record_softnet(*args):
-            softnet_started.set()
-            return softnet(*args)
-
-        def check_overlap(*args):
-            assert review_started.wait(timeout=3)
-            assert softnet_started.wait(timeout=3)
-            return gan(*args)
-
-        monkeypatch.setattr(settings, 'review_signals_command', 'test-review-runner')
-        monkeypatch.setattr(api, 'analyze_review_signals', record_review)
-        monkeypatch.setattr(api, 'analyze_micro_expression', record_softnet)
-        monkeypatch.setattr(api.GANArtifactAnalyzer, 'analyze', check_overlap)
     monkeypatch.setattr(api,'extract_metadata',lambda *a,**kw: MediaMetadata(filename='test.mp4',media_kind='video',
         content_type='video/mp4',size_bytes=10,sha256='a'*64,duration_seconds=3))
     monkeypatch.setattr(api,'prepare_video',lambda *a,**kw:(tmp_path,tmp_path/'audio.wav'))

@@ -1,13 +1,12 @@
 """Effort FaceForensics++ inference using official architecture and face alignment."""
 import argparse
 import os
-import sys
 from pathlib import Path
 
-from common import checkpoint_id, probability, revision, run
+from common import add_sys_path, cached, checkpoint_id, file_key, probability, revision, run
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--repo', type=Path, required=True)
     parser.add_argument('--weights', type=Path, required=True)
@@ -15,7 +14,7 @@ def main():
     parser.add_argument('--landmarks', type=Path, required=True)
     parser.add_argument('--frames', type=Path, required=True)
     parser.add_argument('--device', choices=['cpu', 'cuda'], default='cpu')
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     repo, weights, clip, landmarks, frames = [p.resolve() for p in
         (args.repo, args.weights, args.clip, args.landmarks, args.frames)]
     for path in (weights, landmarks):
@@ -25,7 +24,7 @@ def main():
         raise ValueError('CLIP and frames must be existing directories')
     model_version = revision(repo)
     training = repo / 'DeepfakeBench' / 'training'
-    sys.path.insert(0, str(training))
+    add_sys_path(training)
     os.chdir(training.parent)
     import cv2
     import dlib
@@ -39,15 +38,18 @@ def main():
             backbone = CLIPModel.from_pretrained(str(clip), local_files_only=True).vision_model
             return apply_svd_residual_to_self_attn(backbone, r=1023)
 
-    model = LocalEffort().to(args.device)
-    state = torch.load(str(weights), map_location='cpu', weights_only=True)
-    state = state.get('state_dict', state)
-    state = {k.removeprefix('module.'): v for k, v in state.items()}
-    # Never silently run with a partially loaded classifier/backbone.
-    model.load_state_dict(state, strict=True)
-    model.eval()
-    detector = dlib.get_frontal_face_detector()
-    predictor = dlib.shape_predictor(str(landmarks))
+    def load():
+        model = LocalEffort().to(args.device)
+        state = torch.load(str(weights), map_location='cpu', weights_only=True)
+        state = state.get('state_dict', state)
+        state = {k.removeprefix('module.'): v for k, v in state.items()}
+        # Never silently run with a partially loaded classifier/backbone.
+        model.load_state_dict(state, strict=True)
+        model.eval()
+        return model, dlib.get_frontal_face_detector(), dlib.shape_predictor(str(landmarks))
+
+    model, detector, predictor = cached(
+        ('effort', str(repo), str(clip), args.device, file_key(weights, landmarks)), load)
     samples, skipped = [], 0
     paths = sorted(frames.glob('frame_*.jpg'))
     if not paths:

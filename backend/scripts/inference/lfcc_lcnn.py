@@ -2,35 +2,39 @@
 import argparse
 import importlib.util
 from pathlib import Path
-import sys
 from types import SimpleNamespace
-from common import checkpoint_id, probability, revision, run
+from common import add_sys_path, cached, checkpoint_id, file_key, probability, revision, run
 from aasist import load_audio
 from audio_windows import windows, WINDOW_SAMPLES, SAMPLE_RATE
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ('repo', 'weights', 'audio'):
         parser.add_argument('--' + name, type=Path, required=True)
     parser.add_argument('--device', choices=['cpu', 'cuda'], default='cpu')
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     repo = args.repo.resolve()
-    sys.path.insert(0, str(repo / 'LA/Baseline-LFCC-LCNN'))
+    add_sys_path(repo / 'LA/Baseline-LFCC-LCNN')
     import numpy as np
     import librosa
     import torch
     from lfcc_compat import install
     install(torch)
-    spec = importlib.util.spec_from_file_location('deeptrace_lfcc_model',
-        repo / 'DF/Baseline-LFCC-LCNN/project/baseline_DF/model.py')
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    # The protocol file provides training labels only; inference never reads labels.
-    config = SimpleNamespace(optional_argument=[str(repo / 'deeptrace-inference-no-labels')])
-    model = module.Model(1, 1, SimpleNamespace(), config)
-    model.load_state_dict(torch.load(args.weights, map_location='cpu', weights_only=True), strict=True)
-    model.to(args.device).eval()
+
+    def load():
+        spec = importlib.util.spec_from_file_location('deeptrace_lfcc_model',
+            repo / 'DF/Baseline-LFCC-LCNN/project/baseline_DF/model.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        # The protocol file provides training labels only; inference never reads labels.
+        config = SimpleNamespace(optional_argument=[str(repo / 'deeptrace-inference-no-labels')])
+        model = module.Model(1, 1, SimpleNamespace(), config)
+        model.load_state_dict(torch.load(args.weights, map_location='cpu', weights_only=True), strict=True)
+        model.to(args.device).eval()
+        return model
+
+    model = cached(('lfcc_lcnn', str(repo), args.device, file_key(args.weights)), load)
     audio, decoder = load_audio(args.audio, librosa, np)
     if not audio.size or not np.isfinite(audio).all():
         raise ValueError('Empty or nonfinite audio')

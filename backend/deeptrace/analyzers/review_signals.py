@@ -7,6 +7,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from deeptrace.analyzers.base import command_args
+from deeptrace.analyzers.runner import run_command
 from deeptrace.schemas import MediaMetadata, ReviewCheck
 
 TECHNIQUES = {
@@ -36,9 +37,8 @@ def analyze_review_signals(command: str | None, path: Path, metadata: MediaMetad
     if not command:
         return empty_checks(metadata)
     try:
-        result = subprocess.run(command_args(command, media_path=path), capture_output=True,
-            text=True, check=True, timeout=timeout)
-        payload = json.loads(result.stdout, parse_constant=_invalid_constant)
+        payload = json.loads(run_command(command_args(command, media_path=path), timeout=timeout),
+            parse_constant=_invalid_constant)
         checks = [ReviewCheck.model_validate(item) for item in payload["checks"]]
         keys = [item.technique for item in checks]
         if len(keys) != len(set(keys)) or set(keys) != set(TECHNIQUES):
@@ -57,9 +57,8 @@ def analyze_micro_expression(command: str, path: Path, metadata: MediaMetadata, 
     if metadata.media_kind != 'video':
         return ReviewCheck(**base, status='not_applicable', summary='Video is required.')
     try:
-        result = subprocess.run(command_args(command, media_path=path), capture_output=True,
-            text=True, check=True, timeout=timeout)
-        check = ReviewCheck.model_validate(json.loads(result.stdout, parse_constant=_invalid_constant))
+        check = ReviewCheck.model_validate(json.loads(run_command(command_args(command, media_path=path),
+            timeout=timeout), parse_constant=_invalid_constant))
         if check.technique != 'micro_expression' or check.modality != 'video' or check.validated:
             raise ValueError('Invalid spotting result')
         for value in check.measurements.values():

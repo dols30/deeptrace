@@ -60,11 +60,8 @@ function date(value: string): string {
   return Number.isNaN(parsed.valueOf()) ? value : parsed.toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC');
 }
 function human(value: string): string { return value.replaceAll('_', ' ').replace(/^./, char => char.toUpperCase()); }
-function coverage(component: ComponentResult, report: Report, concise = false): string {
+function coverage(component: ComponentResult, report: Report): string {
   if (component.status === 'not_applicable') return 'Not applicable';
-  if (concise && component.coverage?.mode === 'face_alignment_v1') {
-    return `${component.coverage.frames_scored} of ${component.coverage.frames_sampled} sampled frames scored`;
-  }
   if (component.coverage) return coverageDescription(component);
   if (component.status !== 'functional') return 'Not completed';
   if (component.component === 'audio' && /aasist/i.test(component.model_name)) {
@@ -91,17 +88,20 @@ class ReportDocument {
     this.page.commands.push(color.join(' ') + ' rg ' + n(x) + ' ' + n(HEIGHT - top - height) + ' ' + n(length) + ' ' + n(height) + ' re f');
   }
   newPage(first = false) {
-    this.page = {commands: [], y: first ? 145 : 78, section: this.section};
+    this.page = {commands: [], y: first ? 144 : 78, section: this.section};
     this.pages.push(this.page);
     if (first) {
-      this.draw('DeepTrace', LEFT, 40, {size:11, font:'F2'});
-      this.draw('Media Screening Report', LEFT, 62, {size:25, font:'F2'});
-      this.draw('Generated ' + date(this.report.generated_at), LEFT, 104, {size:10, color:MUTED});
-      this.draw('Review status: ' + human(this.report.workflow_status ?? 'draft'), LEFT, 119, {size:10, color:MUTED});
+      this.draw('DEEPTRACE', LEFT, 40, {size:11, font:'F2'});
+      this.draw('ADVISORY SCREENING', RIGHT - width('ADVISORY SCREENING', 8, 'F1'), 42, {size:8, color:MUTED});
+      this.draw('Media screening report', LEFT, 61, {size:23, font:'F2'});
+      this.draw('Report ID', LEFT, 100, {size:9.5, color:MUTED});
+      this.draw(this.report.report_id, LEFT + 58, 100, {size:9.5, font:'F3'});
+      this.draw('Generated', LEFT, 116, {size:9.5, color:MUTED});
+      this.draw(date(this.report.generated_at), LEFT + 58, 116, {size:9.5});
       this.rule(138);
     } else {
       this.draw('DEEPTRACE / MEDIA SCREENING', LEFT, 34, {size:8, font:'F2', color:MUTED});
-      const ref = lines(this.section, BODY - 170, 8, 'F1')[0];
+      const ref = this.report.report_id.slice(0, 8) + ' / ' + this.section;
       this.draw(ref, RIGHT - width(ref, 8, 'F1'), 34, {size:8, color:MUTED});
       this.rule(57);
     }
@@ -113,12 +113,10 @@ class ReportDocument {
   }
   space(height = 8) { this.page.y += height; }
   paragraph(value: string, style: Style = {}, indent = 0, maxWidth = BODY - indent) {
-    const size = style.size ?? 10.5, font = style.font ?? 'F1', leading = style.leading ?? size * 1.46;
-    const wrapped = lines(value, maxWidth, size, font);
-    this.ensure(leading * Math.min(2, wrapped.length));
-    for (const line of wrapped) {
+    const size = style.size ?? 10, font = style.font ?? 'F1', leading = style.leading ?? size * 1.42;
+    for (const line of lines(value, maxWidth, size, font)) {
       this.ensure(leading);
-      this.draw(line, LEFT + indent, this.page.y, {...style, size});
+      this.draw(line, LEFT + indent, this.page.y, style);
       this.page.y += leading;
     }
     this.space(5);
@@ -133,11 +131,7 @@ class ReportDocument {
   }
   appendix(title: string) {
     this.section = title;
-    if (!this.ensure(215)) {
-      this.space(12);
-      this.rule(this.page.y);
-      this.space(14);
-    }
+    this.newPage();
     this.paragraph(title, {size:18, font:'F2', leading:24});
     this.space(8);
   }
@@ -165,39 +159,29 @@ class ReportDocument {
   }
   table(headers: string[], rows: (string | Cell)[][], widths: number[], ruled = true, size = 9, padding = 7) {
     const leading = size * 1.38;
-    const headerLines = headers.map((value, index) => lines(value, widths[index] - padding * 2, 9, 'F2'));
-    const headerHeight = headers.length ? Math.max(26, Math.max(...headerLines.map(value => value.length)) * 12 + 12) : 0;
-    const minimumRow = ruled ? (size < 10 ? 22 : 30) : 0;
-    if (!rows.length) return;
+    const headerHeight = headers.length ? 26 : 0;
     const header = () => {
       if (!headers.length) return;
       this.fill(this.page.y, headerHeight);
       let x = LEFT;
-      headerLines.forEach((value,index) => {
-        value.forEach((line, lineIndex) => this.draw(line, x + padding, this.page.y + 6 + 12 * lineIndex, {size:9, font:'F2', color:MUTED}));
+      headers.forEach((value,index) => {
+        this.draw(value, x + padding, this.page.y + 7, {size:9, font:'F2', color:MUTED});
         x += widths[index];
       });
       this.page.y += headerHeight;
     };
-    for (const [rowIndex, row] of rows.entries()) {
+    if (rows.length) this.ensure(headerHeight + Math.min(44, padding * 2 + leading * 2));
+    header();
+    for (const row of rows) {
       const cells = row.map(value => typeof value === 'string' ? {text:value} : value);
       const wrapped = cells.map((cell,index) => lines(cell.text, widths[index] - padding * 2, size, cell.font ?? 'F1'));
       let offset = 0;
       const rowLines = Math.max(1, ...wrapped.map(item => item.length));
-      const fullHeight = Math.max(minimumRow, rowLines * leading + padding * 2);
-      const fitsFreshPage = fullHeight <= BOTTOM - 78 - headerHeight;
-      const needed = fitsFreshPage ? fullHeight : Math.max(minimumRow, leading * 2 + padding * 2);
-      if (rowIndex === 0) {
-        this.ensure(headerHeight + needed);
-        header();
-      } else if (this.ensure(needed) && headers.length) {
-        header();
-      }
       while (offset < rowLines) {
         let capacity = Math.floor((BOTTOM - this.page.y - padding * 2) / leading);
         if (capacity < 1) { this.newPage(); header(); capacity = Math.floor((BOTTOM - this.page.y - padding * 2) / leading); }
         const count = Math.min(rowLines - offset, capacity);
-        const height = Math.max(minimumRow, count * leading + padding * 2);
+        const height = Math.max(ruled ? (size < 10 ? 22 : 30) : 0, count * leading + padding * 2);
         if (this.page.y + height > BOTTOM) { this.newPage(); header(); continue; }
         const top = this.page.y;
         let x = LEFT;
@@ -219,7 +203,7 @@ class ReportDocument {
       this.ensure(27);
       wrapped.forEach((line,index) => {
         this.ensure(14.4);
-        if (index === 0) this.draw('•', LEFT, this.page.y, {size:10});
+        if (index === 0) this.draw('-', LEFT, this.page.y, {size:10});
         this.draw(line, LEFT + 13, this.page.y, {size:10});
         this.page.y += 14.4;
       });
@@ -230,7 +214,7 @@ class ReportDocument {
     this.pages.forEach((page,index) => {
       this.page = page;
       this.rule(749);
-      this.draw('DeepTrace', LEFT, 760, {size:8.5, color:MUTED});
+      this.draw('Advisory screening - qualified human review required', LEFT, 760, {size:8.5, color:MUTED});
       const pageNumber = String(index + 1) + ' / ' + this.pages.length;
       this.draw(pageNumber, RIGHT - width(pageNumber, 8.5, 'F1'), 760, {size:8.5, color:MUTED});
     });
@@ -268,12 +252,13 @@ export function createReportPdf(report: Report): Blob {
   doc.paragraph(result.title, {size:14, font:'F2', leading:19});
   doc.paragraph(result.summary, {size:11});
   if (result.missing && result.tone === 'review') doc.paragraph(result.missing + ' checks did not return a usable result.', {size:10});
-  if (report.examination_scope) doc.paragraph(report.examination_scope, {color:MUTED});
+  doc.paragraph(report.examination_scope, {size:10, color:MUTED});
   doc.space(3);
-  doc.table(['Detector', 'Outcome', 'Model score', 'Screened coverage'], report.components.map((component,index) => [
-    {text:label(component,index), font:'F2'}, outcome(component).text, number(score(component)), coverage(component,report,true),
+  doc.table(['Check', 'Finding', 'Model score', 'Coverage'], report.components.map((component,index) => [
+    {text:label(component,index), font:'F2'}, outcome(component).text, number(score(component)), coverage(component,report),
   ]), [144, 90, 82, 188], true, 10);
   doc.space(6);
+  doc.paragraph('Model scores are uncalibrated screening outputs, not probabilities of manipulation. No combined model score is calculated.', {size:10, color:MUTED, leading:12});
 
   doc.heading('2. Findings');
   const findings = report.anomalies.filter(item => !['METADATA_WARNING','MODEL_DISAGREEMENT'].includes(item.code));
@@ -303,12 +288,13 @@ export function createReportPdf(report: Report): Blob {
   doc.paragraph(report.review_status, {size:10, color:MUTED});
   doc.paragraph(result.next, {size:10});
   doc.space(5);
+  doc.paragraph(report.disclaimer, {size:10, color:MUTED, leading:12.5});
 
   doc.appendix('Appendix A. Detector evidence');
-  doc.paragraph('Model scores are shown to three decimal places.', {color:MUTED});
+  doc.paragraph('Each detector retains its own score, decision rule, coverage, and limitations. Scores have not been combined or calibrated into an overall probability. Displayed model scores are rounded to three decimal places.', {size:10, color:MUTED});
   if (!report.components.length) doc.paragraph('No detector results were returned.');
   report.components.forEach((component,index) => {
-    if (index > 0) { doc.ensure(92); doc.space(10); }
+    if (index > 0) { doc.section = 'A.' + (index + 1) + ' ' + label(component,index); doc.ensure(150); doc.space(12); }
     doc.heading('A.' + (index + 1) + ' ' + label(component,index));
     doc.facts([
       ['Detector status',human(component.status)],
@@ -361,7 +347,7 @@ export function createReportPdf(report: Report): Blob {
   if (!report.anomalies.length) doc.paragraph('None returned.');
   report.anomalies.forEach(item => {
     doc.ensure(42);
-    doc.paragraph(observation(item.code, item.description).title, {size:10.5, font:'F2'});
+    doc.paragraph(human(item.code) + ' / ' + item.component + ' / ' + item.severity, {size:10, font:'F2'});
     doc.paragraph(item.description, {size:10});
   });
   doc.heading('B.3 Automated narrative');
@@ -380,7 +366,7 @@ export function createReportPdf(report: Report): Blob {
     Object.entries(report.processing).forEach(([key,value]) => doc.field(human(key),value));
   }
   doc.heading('B.6 Limitations');
-  doc.paragraph('The recorded checks cover only the material they screened. Authenticity is undetermined.');
+  doc.paragraph(report.disclaimer, {size:10});
   doc.bullets(report.limitations);
   doc.heading('B.7 Reporting references');
   if (!report.references.length) doc.paragraph('No references recorded.');
@@ -394,7 +380,7 @@ export function createReportPdf(report: Report): Blob {
   });
   if (report.review_checks?.length) {
     doc.appendix('Appendix C. Supplementary analysis');
-    doc.paragraph('Supplementary measurements are recorded separately from detector scores.');
+    doc.paragraph('These descriptive measurements support review. They do not identify a manipulation technique, establish authenticity, or change the detector scores.');
     report.review_checks.forEach((check,index) => {
       doc.heading('C.' + (index+1) + ' ' + check.title);
       doc.field('Status',human(check.status));

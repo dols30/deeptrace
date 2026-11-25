@@ -186,12 +186,12 @@ def video_checks(path, maximum, landmarks, np):
         cap.release()
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--media', type=Path, required=True)
     parser.add_argument('--landmarks', type=Path)
     parser.add_argument('--max-seconds', type=float, default=30)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     if not 0 < args.max_seconds <= 120:
         raise ValueError('max-seconds must be in (0,120]')
     import numpy as np

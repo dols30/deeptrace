@@ -73,6 +73,14 @@ class GeminiCaseAssistant:
 
 
 def _prompt(question: str, context: dict, *, attached: bool) -> str:
+    lines = _case_record(context)
+    lines.append("The recording is attached." if attached else "The recording was not attached. Answer from the case record only.")
+    lines.append("Question: " + question.strip())
+    return "\n".join(lines)
+
+
+def _case_record(context: dict) -> list[str]:
+    """Findings and report excerpt as prompt lines. Shared by the Gemini and Bedrock assistants."""
     findings = context.get("findings") or []
     lines = ["Automated findings (model outputs, not investigator conclusions):"]
     if findings:
@@ -87,9 +95,7 @@ def _prompt(question: str, context: dict, *, attached: bool) -> str:
         lines.append("- None exceeded the decision threshold.")
     if context.get("report_excerpt"):
         lines.append("AI-generated report excerpt:\n" + context["report_excerpt"])
-    lines.append("The recording is attached." if attached else "The recording was not attached. Answer from the case record only.")
-    lines.append("Question: " + question.strip())
-    return "\n".join(lines)
+    return lines
 
 
 def _upload_media(api_key: str, path: str | None, content_type: str | None) -> tuple[str | None, str | None]:

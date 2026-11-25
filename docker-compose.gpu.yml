@@ -1,0 +1,16 @@
+# NVIDIA GPU access for the backend (AWS g5.xlarge). Needs the NVIDIA driver and Container Toolkit on the
+# host; the Deep Learning Base GPU AMI ships both. Not for the Mac.
+# Turn it on from the root .env rather than with -f flags:
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.gpu.yml
+#   DEEPTRACE_TORCH_INDEX=cu126
+#   DEEPTRACE_DEVICE=cuda
+# See docs/AWS_DEPLOYMENT.md.
+services:
+  backend:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

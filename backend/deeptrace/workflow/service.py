@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session, selectinload
 from deeptrace.config import settings
 from deeptrace.db.models import (
     Analysis, AttributionArtifact, AuditEvent, Comment, Finding, FindingReview, MediaFile,
-    ModelRun, Report, ReportRevision, ReviewAssignment, User,
+    MediaObservation, ModelRun, Report, ReportRevision, ReviewAssignment, User,
 )
 from deeptrace.db.session import ROLES
 from deeptrace.ml.assistant import RulesCaseAssistant
@@ -412,12 +412,23 @@ def ask(session: Session, user: dict, analysis_id: str, question: str, history: 
     )
     context = {
         "findings": [_assistant_finding(item) for item in analysis.findings],
-        "media_path": media.storage_key if media else None,
+        "media_path": _assistant_media_path(media),
         "content_type": media.content_type if media else None,
         "report_excerpt": excerpt,
         "history": [{"role": turn["role"], "text": turn["text"]} for turn in (history or [])],
     }
+    if settings.assistant_provider == "bedrock":
+        return _bedrock_answer(session, analysis, media, question, context)
     return _assistant().answer(question, context)
+
+
+def _assistant_media_path(media: MediaFile | None) -> str | None:
+    """Local copy of the recording for media-aware assistants; the rules assistant never reads it."""
+    if media is None or settings.assistant_provider == "rules":
+        return None
+    from deeptrace.storage import resolve_media
+    path = resolve_media(media.storage_key)
+    return str(path) if path else None
 
 
 def _assistant():
@@ -425,6 +436,45 @@ def _assistant():
         from deeptrace.ml.gemini_assistant import GeminiCaseAssistant
         return GeminiCaseAssistant(settings.gemini_api_key, settings.gemini_model)
     return assistant
+
+
+def _bedrock_answer(session: Session, analysis: Analysis, media: MediaFile | None, question: str, context: dict) -> dict:
+    """Video model describes the recording once (cached); answer model replies from that and the case record."""
+    from deeptrace.ml.bedrock_assistant import (
+        TIMELINE_PROMPT_VERSION, BedrockCaseAssistant, NovaVideoObserver, bedrock_client, video_block,
+    )
+    try:
+        client = bedrock_client(settings.bedrock_region or settings.aws_region)
+    except Exception as exc:  # boto3 missing or no credentials/region
+        logger.info("bedrock_client_unavailable %s", type(exc).__name__)
+        return assistant.answer(question, context)
+    observer = NovaVideoObserver(client, settings.bedrock_video_model)
+    from deeptrace.storage import s3_uri
+    video = video_block(context["media_path"], context["content_type"], s3_uri(media.storage_key)) if media else None
+    context["video"] = video
+    if video is not None and media is not None:
+        context["observations"] = _media_observations(session, analysis, media, observer, video, TIMELINE_PROMPT_VERSION)
+    return BedrockCaseAssistant(client, settings.bedrock_answer_model, observer).answer(question, context)
+
+
+def _media_observations(session: Session, analysis: Analysis, media: MediaFile, observer, video: dict, version: str) -> dict | None:
+    cached = session.scalar(select(MediaObservation).where(
+        MediaObservation.analysis_id == analysis.id, MediaObservation.media_sha256 == media.sha256,
+        MediaObservation.model_id == observer.model_id, MediaObservation.prompt_version == version,
+    ).order_by(MediaObservation.created_at.desc()).limit(1))
+    if cached is not None:
+        return cached.observations
+    try:
+        observations = observer.timeline(video)
+    except Exception as exc:  # Bedrock errors: answer without a timeline and try again on the next question
+        logger.info("bedrock_timeline_unavailable %s", type(exc).__name__)
+        return None
+    session.add(MediaObservation(
+        id=str(uuid4()), analysis_id=analysis.id, media_sha256=media.sha256, model_id=observer.model_id,
+        prompt_version=version, observations=observations, created_at=datetime.now(timezone.utc),
+    ))
+    session.flush()
+    return observations
 
 
 def list_audit(session: Session, user: dict, analysis_id: str | None) -> list[dict]:
@@ -517,6 +567,8 @@ def delete_analysis_for_report(session: Session, user: dict, legacy_report_id: s
         session.delete(analysis.report)
     for assignment in list(analysis.assignments):
         session.delete(assignment)
+    for observation in session.scalars(select(MediaObservation).where(MediaObservation.analysis_id == analysis.id)):
+        session.delete(observation)
     for media in list(analysis.media_files):
         session.delete(media)
     session.delete(analysis)

@@ -5,7 +5,7 @@ import importlib.util
 import os
 from pathlib import Path
 import tempfile
-from common import checkpoint_id, revision, run
+from common import cached, checkpoint_id, file_key, revision, run
 
 
 def load_model(repo, weights):
@@ -40,12 +40,12 @@ def spot_intervals(scores, fps=30., k=6):
         'peak_time': float((p+k)/fps), 'regression_score': float(smooth[p])} for p in peaks], threshold
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ('repo', 'weights', 'media', 'landmarks'):
         parser.add_argument('--' + name, type=Path, required=True)
     parser.add_argument('--max-seconds', type=float, default=30.)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     if not 1 <= args.max_seconds <= 120:
         raise ValueError('max-seconds must be between 1 and 120')
     repo, weights, landmarks = args.repo.resolve(), args.weights.resolve(), args.landmarks.resolve()
@@ -123,7 +123,7 @@ def main():
             sample[:, :, channel] = cv2.normalize(sample[:, :, channel], None, 0, 1, cv2.NORM_MINMAX)
     if not np.isfinite(features).all():
         raise ValueError('Nonfinite optical-flow features')
-    model = load_model(repo, weights)
+    model = cached(('softnet', str(repo), file_key(weights)), lambda: load_model(repo, weights))
     scores = []
     for start in range(0, len(features), 32):
         batch = features[start:start+32]

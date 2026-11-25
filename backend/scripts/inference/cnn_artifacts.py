@@ -1,25 +1,29 @@
 """Authors' CNNDetection ResNet-50, blur/JPEG augmentation checkpoint."""
 import argparse
 from pathlib import Path
-import sys
-from common import checkpoint_id, probability, revision, run
+from common import add_sys_path, cached, checkpoint_id, file_key, probability, revision, run
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ('repo', 'weights', 'frames'):
         parser.add_argument('--' + name, type=Path, required=True)
     parser.add_argument('--device', choices=['cpu', 'cuda'], default='cpu')
-    args = parser.parse_args()
-    sys.path.insert(0, str(args.repo.resolve()))
+    args = parser.parse_args(argv)
+    add_sys_path(args.repo.resolve())
     import torch
     from PIL import Image
     from torchvision import transforms
     from networks.resnet import resnet50
-    model = resnet50(num_classes=1)
-    state = torch.load(args.weights, map_location='cpu', weights_only=True)
-    model.load_state_dict(state['model'], strict=True)
-    model.to(args.device).eval()
+
+    def load():
+        model = resnet50(num_classes=1)
+        state = torch.load(args.weights, map_location='cpu', weights_only=True)
+        model.load_state_dict(state['model'], strict=True)
+        model.to(args.device).eval()
+        return model
+
+    model = cached(('cnn_artifacts', str(args.repo.resolve()), args.device, file_key(args.weights)), load)
     transform = transforms.Compose([transforms.ToTensor(),
         transforms.Normalize(mean=[.485, .456, .406], std=[.229, .224, .225])])
     samples = []

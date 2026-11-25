@@ -4,17 +4,11 @@ DeepTrace is a proof of concept for reviewing audio and video in public-safety i
 
 Each detector reports its own score and the parts of the recording it could assess. Investigators use those results to decide what to review. The software does not determine whether a recording is authentic.
 
-## Run locally
+## EC2 deployment
 
-Install Docker with Compose 2.24.4 or newer, Git, curl, and Python 3.9 or newer. From the repository root, run:
+The `ec2` branch contains the deployment used on the GPU sandbox. It includes CUDA model runners, S3 media storage, and the Bedrock Case Assistant. Follow the [AWS deployment guide](docs/AWS_DEPLOYMENT.md) and configure credentials on the server. GitHub `main` has its own local setup instructions.
 
-```sh
-bash scripts/start-local.sh
-```
-
-The first run downloads and verifies about 564 MB of model assets plus pinned source checkouts, creates local sign-in credentials in `.env`, and starts DeepTrace. Docker images and Python dependencies take additional space. Later runs reuse verified model files and the existing `.env`.
-
-Open [DeepTrace](http://localhost:3000) and sign in with the employee or supervisor credentials in `.env`. See the [all-model setup guide](docs/ALL_MODELS_SETUP.md) for disk planning, supported platforms, and runtime checks.
+For local Docker use on this branch, see the [all-model setup guide](docs/ALL_MODELS_SETUP.md).
 
 ## Repository layout
 
@@ -23,7 +17,6 @@ Open [DeepTrace](http://localhost:3000) and sign in with the employee or supervi
 | `frontend/` | Next.js case workspace, review queue, and reporting UI |
 | `backend/deeptrace/` | FastAPI endpoints, case workflow, persistence, and detector adapters |
 | `backend/scripts/` | Model runners, downloads, and verification |
-| `scripts/start-local.sh` | Downloads the pinned assets and starts the local Docker stack |
 | `backend/tests/` | API, workflow, and detector adapter tests |
 | `docs/` | Architecture, API contracts, model configuration, and validation |
 | `.github/workflows/` | GitHub Actions checks |

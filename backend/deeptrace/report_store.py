@@ -1,5 +1,4 @@
 import json
-import shutil
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -58,14 +57,7 @@ def _connect(path: Path) -> sqlite3.Connection:
     return connection
 
 
-def persist_media(directory: Path, report_id: str, source: Path, filename: str) -> Path:
-    target = directory / report_id / Path(filename).name
-    target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(source, target)
-    return target
-
-
-def save_report(path: Path, owner: str, report: AdvisoryReport, media_path: Path) -> None:
+def save_report(path: Path, owner: str, report: AdvisoryReport, media_path: str | Path) -> None:
     report.owner = owner
     payload = report.model_dump(mode="json")
     with _connect(path) as connection:
@@ -223,7 +215,8 @@ def save_notebook(path: Path, report_id: str, author: str, body: str) -> Noteboo
     )
 
 
-def get_media_path(path: Path, username: str, role: str, report_id: str) -> Path | None:
+def get_media_path(path: Path, username: str, role: str, report_id: str) -> str | None:
+    """Stored media key: a local path or an s3:// URI (see deeptrace.storage)."""
     with _connect(path) as connection:
         row = connection.execute(
             """SELECT media_path FROM reports
@@ -231,7 +224,7 @@ def get_media_path(path: Path, username: str, role: str, report_id: str) -> Path
                      (owner=? OR (?='supervisor' AND workflow_status IN ('submitted','in_review','reviewed') AND reviewer=?))""",
             (report_id, username, role, username),
         ).fetchone()
-    return Path(row[0]) if row and row[0] else None
+    return row[0] if row and row[0] else None
 
 
 def get_profile(path: Path, username: str, role: str) -> ProfileResponse:

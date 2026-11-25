@@ -13,46 +13,58 @@ export function ReportOverview({report}: {report: Report}) {
   const observations = report.anomalies.filter(item => !['METADATA_WARNING', 'MODEL_DISAGREEMENT'].includes(item.code));
   return <div className="report-content">
     {report.processing && Object.values({media:report.processing.media_storage,workspace:report.processing.workflow_storage,history:report.processing.report_storage}).some(value => value === 'unavailable') && <p className="form-error" role="alert">Some results could not be saved. Download this report before leaving. See the examination record for details.</p>}
-    <section className="screening-status" aria-labelledby="authenticity-title">
-      <div>
-        <h2 id="authenticity-title"><span aria-hidden="true" className={result.tone === 'review' ? 'screening-flag' : undefined}>{result.tone === 'review' ? '⚑' : '○'}</span>{result.title}</h2>
+    <section className={`report-assessment ${result.tone}`} aria-labelledby="authenticity-title">
+      <span className="report-assessment-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+          {result.tone === 'review' ? <path d="M6 21V4m0 0c4-4 8 4 12 0v10c-4 4-8-4-12 0"/> : result.tone === 'incomplete' ? <><circle cx="12" cy="12" r="8"/><path d="M12 11v5m0-9v.1"/></> : <><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></>}
+        </svg>
+      </span>
+      <div className="report-assessment-copy">
+        <h2 id="authenticity-title">{result.title}</h2>
         <p>{result.summary}</p>
-        {result.tone === 'review' && result.missing > 0 && <p>{result.missing} check{result.missing === 1 ? '' : 's'} did not return a usable result.</p>}
-        <p>Advisory screening · requires qualified review</p>
+        {result.tone === 'review' && result.missing > 0 && <p className="report-coverage">{result.missing} check{result.missing === 1 ? '' : 's'} did not return a usable result.</p>}
+        <small>Advisory screening · requires qualified review</small>
       </div>
     </section>
-    <div className="screening-results report-screening-results">
-      <section className="screening-findings" aria-labelledby="report-observations-title">
-        <header><h3 id="report-observations-title">Findings</h3><span>{observations.length}</span></header>
-        {observations.length ? <ul className="report-observation-list">{observations.map((item, index) => {
-          const copy = observation(item.code, item.description);
-          return <li key={`${item.code}-${index}`}><h4>{copy.title}</h4><p>{copy.description}</p></li>;
-        })}</ul> : <p className="report-empty">No specific findings returned.</p>}
-        <section className="report-next" aria-labelledby="report-next-title"><h3 id="report-next-title">Next step</h3><p>{result.next}</p></section>
-      </section>
-      <section className="screening-checks" aria-labelledby="report-checks-title">
-        <h3 id="report-checks-title">Detector results</h3>
-        <ul className="officer-checks">{report.components.map((component, index) => {
+    <div className="report-overview-card">
+      <div className="report-overview-grid">
+      <section className="report-overview-section" aria-labelledby="report-checks-title">
+        <header className="report-panel-heading"><h2 id="report-checks-title">Detector checks</h2></header>
+        <ul className="report-check-list">{report.components.map((component, index) => {
           const status = outcome(component);
           return <li key={`${component.detector_id ?? component.model_name}-${index}`}>
-            <strong>{label(component, index)}</strong>
-            <span className={`screening-outcome ${status.tone === 'review' ? 'flagged' : status.tone === 'incomplete' ? 'missing' : status.text === 'No flags' ? 'checked' : 'skipped'}`}><span aria-hidden="true">{status.tone === 'review' ? '⚑' : status.text === 'No flags' ? '○' : '—'}</span> {status.text === 'No flags' ? 'Nothing flagged in checked material' : status.text === 'Flagged' ? 'Flagged for review' : status.text}</span>
-              {component.status === 'functional' && component.component === 'audio' && (component.coverage || /aasist/i.test(component.model_name)) && <small>{audioCoverage(component,report.media.duration_seconds)}</small>}
-              {component.coverage?.mode === 'face_alignment_v1' && <small>{coverageDescription(component)}</small>}
-              {component.status === 'functional' && component.component === 'video' && !component.coverage && component.num_samples != null && <small>{component.num_samples} samples checked</small>}
+            <div><h3>{label(component, index)}</h3>
+              {component.status === 'functional' && component.component === 'audio' && (component.coverage || /aasist/i.test(component.model_name)) && <p>{audioCoverage(component,report.media.duration_seconds)}</p>}
+              {component.coverage?.mode === 'face_alignment_v1' && <p>{coverageDescription(component)}</p>}
+              {component.status === 'functional' && component.component === 'video' && !component.coverage && component.num_samples != null && <p>{component.num_samples} samples checked</p>}
+            </div>
+            <span className={`report-state ${status.tone}`}>{status.text}</span>
           </li>;
         })}</ul>
       </section>
-
+      <section className="report-overview-section" aria-labelledby="report-observations-title">
+        <header className="report-panel-heading"><h2 id="report-observations-title">Findings</h2><span>{observations.length}</span></header>
+        {observations.length ? <ul className="report-observation-list">{observations.map((item, index) => {
+          const copy = observation(item.code, item.description);
+          return <li key={`${item.code}-${index}`}><h3>{copy.title}</h3><p>{copy.description}</p></li>;
+        })}</ul> : <p className="report-empty">No specific findings returned.</p>}
+        <section className="report-next" aria-labelledby="report-next-title"><h2 id="report-next-title">Next step</h2><p>{result.next}</p></section>
+      </section>
+      </div>
     </div>
   </div>;
 }
 
-function DetectorEvidence({component}: {component: ComponentResult}) {
+function DetectorEvidence({component, index}: {component: ComponentResult; index: number}) {
+  const value = score(component);
   const notes = [...new Set([...(component.notes ?? []), ...(component.limitations ?? [])])];
+  const validated = component.threshold_validated ?? component.threshold_validation?.validated ?? false;
   return <article className="report-detector">
+    <header className="report-panel-heading"><h3>{label(component, index)}</h3><span className={`report-state ${component.status === 'functional' ? 'neutral' : 'incomplete'}`}>{component.status.replaceAll('_', ' ')}</span></header>
     <div className="report-panel-body">
       <Facts items={[
+        ['Model score', <><strong className="report-model-score">{value == null ? 'Not available' : value.toFixed(3)}</strong><span className="report-value-note">Uncalibrated</span></>],
+        ['Decision threshold', <>{component.threshold == null ? 'Not reported' : component.threshold.toString()}<span className="report-value-note">{validated ? 'Validation recorded' : 'Not DPS-validated'}</span></>],
         ['Estimated probability', component.calibrated_probability == null ? 'Not available' : formatModelScore(component.calibrated_probability)],
         ['Model', component.detector_name ?? component.model_name],
         ['Version', component.model_version],
@@ -85,36 +97,20 @@ function DetectorEvidence({component}: {component: ComponentResult}) {
 
 export function ReportTechnical({report}: {report: Report}) {
   return <div className="report-content report-technical-content">
-    <section className="technical-block" aria-labelledby="report-evidence-title">
-      <div className="technical-block-heading"><h3 id="report-evidence-title">Detector evidence</h3><p>Scores are uncalibrated. No cross-detector average is calculated.</p></div>
-      {report.components.length ? <div className="report-table-scroll"><table className="technical-evidence-table">
-        <thead><tr><th scope="col">Detector</th><th scope="col">Outcome</th><th scope="col">Model score</th><th scope="col">Decision threshold</th></tr></thead>
-        <tbody>{report.components.map((component, index) => {
-          const status = outcome(component);
-          const value = score(component);
-          const validated = component.threshold_validated ?? component.threshold_validation?.validated ?? false;
-          return <tr key={`${component.detector_id ?? component.model_name}-${index}`}>
-            <th scope="row"><details className="technical-run-detail"><summary>{label(component, index)}</summary>
-              <DetectorEvidence component={component}/>
-            </details></th>
-            <td><span className={`report-state ${status.tone}`}>{status.text}</span></td>
-            <td>{value == null ? 'Not available' : value.toFixed(3)}</td>
-            <td>{component.threshold ?? 'Not reported'}{component.threshold != null && <span className="report-value-note">{validated ? 'Validation recorded' : 'Not DPS-validated'}</span>}</td>
-          </tr>;
-        })}</tbody>
-      </table></div> : <p className="technical-empty">No detector runs were recorded for this report.</p>}
-    </section>
     <section className="report-panel report-media-card" aria-labelledby="report-media-title"><header className="report-panel-heading"><h2 id="report-media-title">File and provenance</h2></header><div className="report-panel-body"><Facts items={[
       ['File', report.media.filename], ['Media type', report.media.media_kind], ['File size', formatBytes(report.media.size_bytes)],
       ['Duration', report.media.duration_seconds == null ? 'Not available' : `${report.media.duration_seconds.toFixed(2)} seconds`],
-      ['Container', report.media.container ?? 'Not reported'], ['Generated', report.generated_at],
-    ]}/><details className="report-detail"><summary>File identifiers</summary>
-      <Facts items={ [['Report ID', report.report_id], ['SHA-256', report.media.sha256]] }/>
-    </details></div></section>
+      ['Container', report.media.container ?? 'Not reported'], ['Report ID', report.report_id], ['Generated', report.generated_at],
+      ['SHA-256', report.media.sha256],
+    ]}/></div></section>
+    <section className="report-panel report-technical-section" aria-labelledby="report-evidence-title"><header className="report-panel-heading"><h2 id="report-evidence-title">Independent detector results</h2></header>
+      <div className="report-panel-body"><p className="report-technical-note">No cross-detector average is calculated. Model scores are uncalibrated.</p>
+      <div className="report-detector-grid">{report.components.map((component, index) => <DetectorEvidence key={`${component.detector_id ?? component.model_name}-${index}`} component={component} index={index}/>)}</div></div>
+    </section>
     <ReviewChecks checks={report.review_checks}/>
     <div className="report-record-card">
     <section className="report-record-section" aria-labelledby="report-anomalies-title"><header className="report-panel-heading"><h2 id="report-anomalies-title">Recorded observations</h2><span>{report.anomalies.length}</span></header>
-      {report.anomalies.length ? <ul className="report-technical-observations">{report.anomalies.map((item, index) => <li key={`${item.code}-${index}`}><header><span>{item.component} · {item.severity}</span></header><p>{item.description}</p><details><summary>Observation code</summary><code>{item.code}</code></details></li>)}</ul> : <p className="report-empty">None returned.</p>}
+      {report.anomalies.length ? <ul className="report-technical-observations">{report.anomalies.map((item, index) => <li key={`${item.code}-${index}`}><header><code>{item.code}</code><span>{item.component} · {item.severity}</span></header><p>{item.description}</p></li>)}</ul> : <p className="report-empty">None returned.</p>}
     </section>
     <section className="report-record-section" aria-labelledby="report-methods-title"><header className="report-panel-heading"><h2 id="report-methods-title">Examination record</h2></header><div className="report-panel-body report-documentation-body">
       <section><h3>Automated summary</h3><p>{report.summary}</p></section>

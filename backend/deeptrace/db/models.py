@@ -222,3 +222,17 @@ class AuditEvent(Base):
     entity_id: Mapped[str] = mapped_column(String(36), index=True)
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
     event_metadata: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class MediaObservation(Base):
+    """Cached video-model description of a recording, used by the case assistant. Not a detector finding."""
+
+    __tablename__ = "media_observations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    analysis_id: Mapped[str] = mapped_column(ForeignKey("analyses.id"), index=True)
+    media_sha256: Mapped[str] = mapped_column(String(64))
+    model_id: Mapped[str] = mapped_column(String(128))
+    prompt_version: Mapped[str] = mapped_column(String(32))
+    observations: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

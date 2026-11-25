@@ -21,33 +21,22 @@ export function detectorTask(modelName: string) {
   return DETECTOR_TASKS.find(item => item.match.test(modelName))?.label ?? modelName;
 }
 
-export function FindingPicker({findings, selected, onSelect}: {
-  findings: Finding[];
-  selected: Finding | null;
-  onSelect: (finding: Finding) => void;
-}) {
-  const index = Math.max(0, findings.findIndex(finding => finding.id === selected?.id));
-  return <div className="finding-picker">
-    <label>Finding
-      <select value={index} onChange={event => {
-        const finding = findings[Number(event.target.value)];
-        if (finding) onSelect(finding);
-      }}>
-        {findings.map((finding, position) => <option value={position} key={finding.id}>
-          {position + 1}. {detectorTask(finding.model_name)} · {clock(finding.start_time)}
-        </option>)}
-      </select>
-    </label>
-    <div className="finding-picker-nav">
-      <button type="button" aria-label="Previous finding" disabled={index === 0} onClick={() => onSelect(findings[index - 1])}>← Previous</button>
-      <span aria-live="polite">{index + 1} of {findings.length}</span>
-      <button type="button" aria-label="Next finding" disabled={index === findings.length - 1} onClick={() => onSelect(findings[index + 1])}>Next →</button>
-    </div>
-  </div>;
-}
+export type FindingRun = {key: string; modelName: string; start: number; end: number | null; peak: number; items: {finding: Finding; index: number}[]};
 
-function reviewLabel(value: string | null) {
-  return DISPOSITIONS.find(item => item.value === value)?.label ?? 'Not reviewed';
+export function findingRuns(findings: Finding[]): FindingRun[] {
+  const runs: FindingRun[] = [];
+  findings.forEach((finding, index) => {
+    const run = runs.findLast(item => item.modelName === finding.model_name);
+    const runEnd = run ? run.end ?? run.start : 0;
+    if (run && finding.start_time <= runEnd + 0.05) {
+      run.items.push({finding, index});
+      run.end = Math.max(runEnd, finding.end_time ?? finding.start_time);
+      run.peak = Math.max(run.peak, finding.raw_score);
+      return;
+    }
+    runs.push({key: finding.id, modelName: finding.model_name, start: finding.start_time, end: finding.end_time, peak: finding.raw_score, items: [{finding, index}]});
+  });
+  return runs.sort((a, b) => a.start - b.start);
 }
 
 export function FindingsInspector({
@@ -69,18 +58,24 @@ export function FindingsInspector({
   onNote: (value: string) => void;
   onDisposition: (value: Disposition) => void;
 }) {
-  return <div className="finding-review-stack">
-    <section className="findings-pane" aria-label="Flagged material" data-tour="finding">
+  return <section className="findings-pane" aria-label="Flagged material" data-tour="finding">
     <header className="pane-head">
       <h2>Flagged material</h2>
       <span>{findings.length}</span>
     </header>
     {!findings.length && <p className="workspace-empty" data-tour="disposition">{technical ? EMPTY_FINDINGS : 'No review items were returned. Check the screening summary for any checks that did not complete.'}</p>}
-    {!!findings.length && <FindingPicker findings={findings} selected={selected} onSelect={onSelect}/>}
+    <ol className="finding-runs">{findingRuns(findings).map(run => <li key={run.key} className="finding-run">
+      <header>
+        <strong>{detectorTask(run.modelName)}</strong>
+        <span>{clock(run.start)} – {clock(run.end)} · {run.items.length} {run.items.length === 1 ? 'window' : 'windows'}{technical && ` · peak ${run.peak.toFixed(2)}`}</span>
+      </header>
+      <ol>{run.items.map(({finding, index}) => <li key={finding.id}><button type="button" className={finding.id === selected?.id ? 'selected' : ''} onClick={() => onSelect(finding)}><span className={`modality ${finding.modality}`}>{finding.modality === 'video' ? 'V' : 'A'}</span><span className="finding-label">Finding {index + 1}<small>{clock(finding.start_time)} – {clock(finding.end_time)}</small></span>{technical && <b>{finding.raw_score.toFixed(2)}</b>}</button></li>)}</ol>
+    </li>)}</ol>
     {selected && <article className="finding-card">
-      <h3 className="finding-detector">{detectorTask(selected.model_name)}</h3>
+      <p className="finding-kicker">Possible {selected.modality === 'video' ? 'visual' : 'audio'} manipulation signal</p>
+      <p className="finding-detector">{detectorTask(selected.model_name)}</p>
       <p>{clock(selected.start_time)} – {clock(selected.end_time)}</p>
-      {!technical && <p>Review this interval in context before recording your assessment.</p>}
+      {!technical && <p>Review this flagged material in context. The flag does not prove manipulation or identify an edited region.</p>}
       {technical && <>
       <dl>
         <div><dt>Model screening score</dt><dd>{selected.raw_score.toFixed(2)}</dd></div>
@@ -97,17 +92,13 @@ export function FindingsInspector({
       </dl></details>
       <Terms/>
       </>}
-      </article>}
-    </section>
-    {selected && <section className="findings-pane finding-assessment" aria-labelledby="finding-assessment-title">
-      <header className="pane-head"><h2 id="finding-assessment-title">Investigator assessment</h2></header>
       <fieldset data-tour="disposition">
         <legend>How do you assess this flag?</legend>
         {DISPOSITIONS.map(item => <label key={item.value}><input type="radio" name="disposition" value={item.value} checked={selected.human_disposition === item.value} onChange={() => onDisposition(item.value)}/>{item.label}</label>)}
       </fieldset>
       <label className="stack">Comment<textarea value={note} onChange={event => onNote(event.target.value)} maxLength={4000} aria-label="Investigator comment on this finding"/></label>
-      {!!selected.reviews.length && <ol className="review-history">{selected.reviews.map(review => <li key={review.id}><span>{reviewLabel(review.previous_value)} → {reviewLabel(review.new_value)}</span>{review.comment && <p>{review.comment}</p>}</li>)}</ol>}
+      {!!selected.reviews.length && <ol className="review-history">{selected.reviews.map(review => <li key={review.id}><span>{review.previous_value ?? 'unset'} → {review.new_value}</span><small>{review.actor_id}</small>{review.comment && <p>{review.comment}</p>}</li>)}</ol>}
       <p aria-live="polite">{saveState}</p>
-    </section>}
-  </div>;
+    </article>}
+  </section>;
 }

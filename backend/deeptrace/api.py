@@ -1,10 +1,11 @@
+import logging
 import os
 import tempfile
 import sqlite3
-from concurrent.futures import ThreadPoolExecutor, wait
-from functools import partial
+from concurrent.futures import ThreadPoolExecutor
 from time import perf_counter
 from pathlib import Path
+from typing import Any, Callable
 from urllib.parse import urlsplit
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -30,14 +31,16 @@ from deeptrace.reporting import build_report
 from deeptrace.db.session import session_scope
 from deeptrace.report_store import (
     add_comment, can_access_report, delete_report, get_media_path, get_notebook, get_profile, get_report,
-    list_comments, list_reports, persist_media, report_owner, save_notebook, save_report, submit_report,
+    list_comments, list_reports, report_owner, save_notebook, save_report, submit_report,
     transition_review, update_profile,
 )
+from deeptrace.storage import delete_media, persist_media, resolve_media
 from deeptrace.workflow import service as workflow_service
 from deeptrace.workflow.access import WorkflowError
 
+logger = logging.getLogger("deeptrace.api")
+
 router = APIRouter()
-_review_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="deeptrace-review")
 
 
 @router.get("/v1/auth/config")
@@ -94,11 +97,33 @@ async def analyze(file: UploadFile = File(...), user: dict = Depends(require_use
         profile.log()
 
 
+def _fixed(result):
+    """A job whose result is already known (not applicable, or preparation failed)."""
+    return lambda: result
+
+
+def _run_jobs(jobs: list[Callable[[], Any]], max_parallel: int) -> list[tuple[Any, float]]:
+    """Run independent jobs, up to max_parallel at once; returns (result, seconds) in job order.
+
+    Jobs are adapter calls that wait on runner subprocesses or warm workers, so threads overlap them
+    without the API process doing model work. max_parallel=1 runs them in order, as before.
+    """
+    def timed(job):
+        started = perf_counter()
+        result = job()
+        return result, perf_counter() - started
+
+    if max_parallel <= 1 or len(jobs) <= 1:
+        return [timed(job) for job in jobs]
+    with ThreadPoolExecutor(max_workers=min(max_parallel, len(jobs)), thread_name_prefix="deeptrace-detector") as pool:
+        futures = [pool.submit(timed, job) for job in jobs]
+        return [future.result() for future in futures]
+
+
 def _screen_upload(path: Path, filename: str, content_type: str, user: dict,
                    profile: AnalysisProfile | None = None) -> AdvisoryReport:
     profile = profile or AnalysisProfile()
     prepared_frames = None
-    review_future = micro_future = None
     try:
         try:
             media_timings = {}
@@ -108,16 +133,6 @@ def _screen_upload(path: Path, filename: str, content_type: str, user: dict,
                 profile.add(name, elapsed)
         except ValueError as exc:
             raise HTTPException(status_code=415, detail=str(exc)) from exc
-        review = partial(analyze_review_signals, settings.review_signals_command, path, metadata,
-                         settings.review_signals_timeout_seconds)
-        micro = None
-        if settings.micro_expression_command:
-            micro = partial(analyze_micro_expression, settings.micro_expression_command, path, metadata)
-        if settings.parallel_review_checks and metadata.media_kind == "video":
-            if settings.review_signals_command:
-                review_future = _review_executor.submit(review)
-            if micro is not None:
-                micro_future = _review_executor.submit(micro)
         face_analyzer = (EfficientNetVideoAnalyzer(settings.efficientnet_command, settings.frame_interval_seconds,
             explain=settings.explain, decision_rule=settings.efficientnet_decision_rule)
             if settings.video_model == "efficientnetb4" else EffortVideoAnalyzer(settings.effort_command, settings.frame_interval_seconds))
@@ -136,61 +151,72 @@ def _screen_upload(path: Path, filename: str, content_type: str, user: dict,
                 metadata.extraction_warnings.append("Video preparation could not complete; video checks are unavailable.")
             for name, elapsed in media_timings.items():
                 profile.add(name, elapsed)
-            started = perf_counter()
-            face_result = (face_analyzer.analyze(prepared_frames, metadata) if not preparation_error else
-                ComponentResult(component="video", status="error", model_name=face_analyzer.model_name,
-                    model_version="not_run", task="face_manipulation", notes=["Video preparation failed; no frames were assessed."]))
-            profile.add_runner(f"{face_analyzer.model_name} detector", perf_counter() - started, face_analyzer.last_profile)
-            started = perf_counter()
-            scene_result = (scene_analyzer.analyze(prepared_frames, metadata) if not preparation_error else
-                ComponentResult(component="video", status="error", model_name=scene_analyzer.model_name,
-                    model_version="not_run", task="synthetic_video", notes=["Video preparation failed; no frames were assessed."]))
-            profile.add_runner("CommFor detector", perf_counter() - started, scene_analyzer.last_profile)
-            started = perf_counter()
-            if preparation_error:
-                audio_result = audio.analyze(path, metadata)
-            elif extracted_audio:
-                audio_result = audio.analyze(extracted_audio, metadata)
+            frames_failed = ["Video preparation failed; no frames were assessed."]
+            face_job = ((lambda: face_analyzer.analyze(prepared_frames, metadata)) if not preparation_error else
+                _fixed(ComponentResult(component="video", status="error", model_name=face_analyzer.model_name,
+                    model_version="not_run", task="face_manipulation", notes=frames_failed)))
+            scene_job = ((lambda: scene_analyzer.analyze(prepared_frames, metadata)) if not preparation_error else
+                _fixed(ComponentResult(component="video", status="error", model_name=scene_analyzer.model_name,
+                    model_version="not_run", task="synthetic_video", notes=frames_failed)))
+            audio_applicable = True
+            if preparation_error or extracted_audio:
+                audio_source = path if preparation_error else extracted_audio
+                audio_job = lambda: audio.analyze(audio_source, metadata)
             else:
                 audio_expected = any(codec.startswith("audio:") for codec in metadata.codecs) or bool(metadata.extraction_warnings)
-                audio_result = ComponentResult(component="audio", status="error" if audio_expected else "not_applicable",
+                # Audio analyzers never return not_applicable themselves, so this is the only such case.
+                audio_applicable = audio_expected
+                audio_job = _fixed(ComponentResult(component="audio", status="error" if audio_expected else "not_applicable",
                     model_name=audio.model_name, model_version="not_run", task="audio_spoof",
-                    notes=["Audio extraction failed; no audio was assessed." if audio_expected else "No audio stream was reported by the media probe."])
-            profile.add_runner(f"{audio.model_name} detector", perf_counter() - started, audio.last_profile)
+                    notes=["Audio extraction failed; no audio was assessed." if audio_expected else "No audio stream was reported by the media probe."]))
         else:
-            face_result = ComponentResult(component="video", status="not_applicable", model_name=face_analyzer.model_name,
-                model_version="n/a", detector_id="deepfakebench_efficientnet_b4", task="face_manipulation")
-            scene_result = ComponentResult(component="video", status="not_applicable", model_name=scene_analyzer.model_name,
-                model_version="n/a", detector_id="community_forensics", task="synthetic_video")
-            started = perf_counter()
-            audio_result = audio.analyze(path, metadata)
-            profile.add_runner(f"{audio.model_name} detector", perf_counter() - started, audio.last_profile)
-        components = [face_result, scene_result, audio_result]
+            face_job = _fixed(ComponentResult(component="video", status="not_applicable", model_name=face_analyzer.model_name,
+                model_version="n/a", detector_id="deepfakebench_efficientnet_b4", task="face_manipulation"))
+            scene_job = _fixed(ComponentResult(component="video", status="not_applicable", model_name=scene_analyzer.model_name,
+                model_version="n/a", detector_id="community_forensics", task="synthetic_video"))
+            audio_job = lambda: audio.analyze(path, metadata)
+            audio_applicable = True
+        # Each detector job produces one independent component, in report order; nothing is combined
+        # across detectors. Entries are (profile label or None to skip profiling, analyzer, job).
+        video = metadata.media_kind == "video"
+        detector_jobs = [
+            (f"{face_analyzer.model_name} detector" if video else None, face_analyzer, face_job),
+            ("CommFor detector" if video else None, scene_analyzer, scene_job),
+            (f"{audio.model_name} detector", audio, audio_job),
+        ]
         for analyzer, applicable, source in (
             (GANArtifactAnalyzer(settings.gan_artifact_command, settings.frame_interval_seconds),
                 metadata.media_kind == 'video', prepared_frames),
-            (VocoderArtifactAnalyzer(settings.vocoder_artifact_command),
-                audio_result.status != 'not_applicable',
+            (VocoderArtifactAnalyzer(settings.vocoder_artifact_command), audio_applicable,
                 (extracted_audio or path) if metadata.media_kind == 'video' else path),
         ):
             if not analyzer.command:
                 continue
-            started = perf_counter()
             if not applicable or source is None:
-                component = ComponentResult(component='video' if isinstance(analyzer, GANArtifactAnalyzer) else 'audio',
+                job = _fixed(ComponentResult(component='video' if isinstance(analyzer, GANArtifactAnalyzer) else 'audio',
                     status='not_applicable' if not applicable else 'error', model_name=analyzer.model_name,
                     model_version='not_run', detector_id=analyzer.detector_id, task=analyzer.task,
-                    notes=['No applicable media stream.' if not applicable else 'Frame preparation failed.'])
+                    notes=['No applicable media stream.' if not applicable else 'Frame preparation failed.']))
             else:
-                component = analyzer.analyze(source, metadata)
-            components.append(component)
-            profile.add_runner(analyzer.model_name, perf_counter() - started, analyzer.last_profile)
+                job = (lambda analyzer=analyzer, source=source: analyzer.analyze(source, metadata))
+            detector_jobs.append((analyzer.model_name, analyzer, job))
+        review_jobs = [("supplementary review measurements", lambda: analyze_review_signals(
+            settings.review_signals_command, path, metadata, settings.review_signals_timeout_seconds))]
+        if settings.micro_expression_command:
+            review_jobs.append(("micro-expression spotting",
+                lambda: [analyze_micro_expression(settings.micro_expression_command, path, metadata)]))
         started = perf_counter()
-        review_checks = review_future.result() if review_future is not None else review()
-        if micro is not None:
-            review_checks.append(micro_future.result() if micro_future is not None else micro())
-        profile.add("supplementary review wait" if review_future or micro_future
-                    else "supplementary review measurements", perf_counter() - started)
+        outcomes = _run_jobs([job for *_, job in [*detector_jobs, *review_jobs]], settings.max_parallel_runners)
+        profile.add(f"detectors + review measurements, wall time (up to {settings.max_parallel_runners} concurrent)",
+            perf_counter() - started)
+        detector_outcomes, review_outcomes = outcomes[:len(detector_jobs)], outcomes[len(detector_jobs):]
+        for (label, analyzer, _), (_, elapsed) in zip(detector_jobs, detector_outcomes):
+            if label is not None:
+                profile.add_runner(label, elapsed, analyzer.last_profile)
+        for (label, _), (_, elapsed) in zip(review_jobs, review_outcomes):
+            profile.add(label, elapsed)
+        components = [result for result, _ in detector_outcomes]
+        review_checks = [check for checks, _ in review_outcomes for check in checks]
         started = perf_counter()
         report = build_report(metadata, components, keep_uploads=settings.keep_uploads,
             review_checks=review_checks,
@@ -204,7 +230,7 @@ def _screen_upload(path: Path, filename: str, content_type: str, user: dict,
             "supplementary_status": "partial" if any(c.status in {"error", "unavailable"} for c in review_checks) else "completed",
             "elapsed_seconds": round(perf_counter() - profile.started, 3), "media_storage": "pending", "workflow_storage": "pending", "report_storage": "pending"}
         try:
-            stored_media = persist_media(settings.report_media_dir, report.report_id, path, report.media.filename)
+            stored_media = persist_media(report.report_id, path, report.media.filename)
             report.processing["media_storage"] = "saved"
         except OSError:
             stored_media = None
@@ -219,7 +245,7 @@ def _screen_upload(path: Path, filename: str, content_type: str, user: dict,
                 with session_scope() as session:
                     report.analysis_id = record_screening(
                         session, owner=str(user["sub"]), role=str(user["role"]),
-                        report=report, media_path=str(stored_media),
+                        report=report, media_path=stored_media,
                     )
                 report.processing["workflow_storage"] = "saved"
             except (OSError, SQLAlchemyError):
@@ -242,11 +268,6 @@ def _screen_upload(path: Path, filename: str, content_type: str, user: dict,
         profile.add("persistence: legacy DB", perf_counter() - started)
         return report
     finally:
-        # Running checks still read the upload. Cancel queued work and wait before the route removes it.
-        futures = [future for future in (review_future, micro_future)
-                   if future is not None and not future.cancel()]
-        if futures:
-            wait(futures)
         if prepared_frames:
             cleanup_prepared(prepared_frames)
 
@@ -269,10 +290,11 @@ def remove_report(report_id: str, user: dict = Depends(require_user)) -> None:
     except WorkflowError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
     stored = delete_report(settings.report_db_path, report_id)
-    if stored:
-        Path(stored).unlink(missing_ok=True)
-    for key in media_keys:
-        Path(key).unlink(missing_ok=True)
+    for key in {stored, *media_keys} - {None, ""}:
+        try:
+            delete_media(key)
+        except OSError:  # records are gone; an orphaned object is left for the bucket lifecycle rule
+            logger.warning("media_delete_failed report=%s", report_id)
 
 
 @router.get("/v1/reports/{report_id}", response_model=AdvisoryReport)
@@ -363,10 +385,10 @@ def update_report_notebook(
 
 @router.get("/v1/reports/{report_id}/media")
 def report_media(report_id: str, user: dict = Depends(require_user)) -> FileResponse:
-    media_path = get_media_path(
+    media_path = resolve_media(get_media_path(
         settings.report_db_path, str(user["sub"]), str(user["role"]), report_id,
-    )
-    if media_path is None or not media_path.is_file():
+    ))
+    if media_path is None:
         raise HTTPException(status_code=404, detail="Media not found")
     return FileResponse(media_path, filename=media_path.name)
 

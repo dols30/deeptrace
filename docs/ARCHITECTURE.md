@@ -39,7 +39,8 @@ flowchart LR
   subgraph Storage
     WDB[("Workflow DB<br/>SQLite / PostgreSQL")]
     LDB[("Legacy report store<br/>SQLite data/deeptrace.db")]
-    Disk[("Media on disk<br/>data/report-media")]
+    Disk[("Media on disk<br/>data/report-media<br/>(S3 cache when s3)")]
+    S3[("S3 bucket<br/>record copy of media<br/>(DEEPTRACE_STORAGE_BACKEND=s3)")]
   end
 
   Clients -- "HTTPS JSON + Bearer JWT" --> Routes
@@ -47,8 +48,10 @@ flowchart LR
   Service --> WDB
   Routes --> LDB
   Routes --> Disk
+  Routes -. "s3 backend" .-> S3
   Auth -. "JWKS (cognito mode)" .-> Cognito[(AWS Cognito)]
   ML -. "optional" .-> Gemini[(Google Gemini API)]
+  ML -. "optional" .-> Bedrock[(Amazon Bedrock)]
 ```
 
 Two independently deployable units: the static/standalone Next.js frontend (port 3000) and the FastAPI API (port 8000 locally, 8080 in its container). Docker Compose adds PostgreSQL 16. There are **no background workers or queues**; analysis runs synchronously inside the upload request.
@@ -82,14 +85,14 @@ Two independently deployable units: the static/standalone Next.js frontend (port
 1. **User** drops a file on `/detector` → `components/screening.tsx` `submit()` → `lib/api.ts::analyze()` posts multipart `file` to `POST /v1/analyze` with `Authorization: Bearer <token>` (token from `sessionStorage`). The progress UI is timer-driven; the request is a single blocking call.
 2. **Route** `api.py::analyze` (requires `require_user`) streams the upload to `DEEPTRACE_UPLOAD_DIR` in 1 MB chunks, rejecting > `DEEPTRACE_MAX_UPLOAD_MB` with 413.
 3. **Media** `media.extract_metadata` checks the declared MIME type against `ALLOWED_TYPES` (415 otherwise), hashes the bytes (SHA-256), probes with ffprobe (failures become `extraction_warnings`). `media.prepare_video` writes JPEGs at `fps=1/DEEPTRACE_FRAME_INTERVAL_SECONDS` capped at `DEEPTRACE_MAX_FRAMES`, plus a mono 16 kHz PCM WAV, into a temp dir.
-4. **Detectors** run sequentially, each as a subprocess (`subprocess.run`, no shell, 900 s timeout):
+4. **Detectors** run through `analyzers/runner.py::run_command` (no shell, 900 s timeout): by default each as a one-shot subprocess, one after another. `DEEPTRACE_MAX_PARALLEL_RUNNERS` runs these independent jobs concurrently, and `DEEPTRACE_MODEL_WORKERS` serves each runner from a warm worker process that keeps its model loaded (see [MODEL_ORCHESTRATION.md](MODEL_ORCHESTRATION.md)):
    - face: `EfficientNetVideoAnalyzer` (or `EffortVideoAnalyzer` if `DEEPTRACE_VIDEO_MODEL=effort`) on the frames dir;
    - whole frame: `SceneVideoAnalyzer` (Community Forensics) on the same frames dir;
    - audio: `AASISTAudioAnalyzer` (or Nes2Net) on the extracted WAV.
    Each runner prints `{"model_version", "checkpoint", "samples"|"fake_probability", "notes", ...}`; the adapter validates it and returns a `ComponentResult` with `status` ∈ functional / unavailable / error / not_applicable.
 5. **Report** `reporting.build_report` assembles an `AdvisoryReport` with `components=[face, scene, audio]`, `overall_synthetic_confidence=None`, an `evidence_summary`, observations, methods and limitations.
 6. **Persistence**
-   - `report_store.persist_media` copies the upload to `DEEPTRACE_REPORT_MEDIA_DIR/<report_id>/<filename>`.
+   - `storage.persist_media` saves the upload. Local backend: `DEEPTRACE_REPORT_MEDIA_DIR/<report_id>/<filename>`, stored as that path. S3 backend: `s3://<bucket>/<prefix>/media/<report_id>/<filename>`, stored as that URI, with a disposable local cache under `DEEPTRACE_REPORT_MEDIA_DIR/s3-cache/`. Reads (`resolve_media`) and deletes dispatch on the stored key, so local records stay readable after switching to S3. See [S3_STORAGE.md](S3_STORAGE.md).
    - `workflow.service.record_screening` creates `Analysis` (status `AI_SCREENING_COMPLETE`), `MediaFile`, one `ModelRun` per component, `Finding` rows via `ml.detectors.detection_from_component` (one per sample with `raw_score ≥ DEEPTRACE_DECISION_THRESHOLD`), `AttributionArtifact` per finding, a `Report` whose `ai_original` and `current_body` are the generated sections, an `ai_generated` `ReportRevision`, and audit events.
    - `report_store.save_report` stores the full `AdvisoryReport` JSON in the legacy SQLite DB.
 7. **Response** returns the `AdvisoryReport` (with `analysis_id`). Temp upload and frames are deleted in `finally` unless `DEEPTRACE_KEEP_UPLOADS=true`.
@@ -127,7 +130,7 @@ The legacy store has its own, separate status (`draft → submitted → in_revie
 
 ## Configuration
 
-All backend settings are `DEEPTRACE_*` env vars defined in `backend/deeptrace/config.py` (loaded from `backend/.env`; Compose reads the root `.env`). The frontend has one build-time public variable, `NEXT_PUBLIC_API_BASE_URL`. CORS allows only `DEEPTRACE_FRONTEND_ORIGINS`.
+All backend settings are `DEEPTRACE_*` env vars defined in `backend/deeptrace/config.py` (loaded from `backend/.env`; Compose reads the root `.env` on the Mac and `.env.prod` on the AWS host via `--env-file`). The frontend has one build-time public variable, `NEXT_PUBLIC_API_BASE_URL`. CORS allows only `DEEPTRACE_FRONTEND_ORIGINS`.
 
 ## Architectural invariants
 
@@ -151,7 +154,7 @@ Visible in the code today:
 - **Findings lose detector identity.** `ModelRun` and `Finding` store `modality` (`video`/`audio`) but not `detector_id`/`task`, so face and whole-frame findings are both "video". The frontend infers the task from `model_name` with a regex (`detectorTask()` in `workspace/findings-inspector.tsx`). The workspace's "Video screening score" reads the first video `ModelRun` (the face model) even when a whole-frame finding is selected.
 - **Thresholds outside EfficientNet remain duplicated.** EfficientNet now declares its versioned threshold on the component and workflow findings honor it. Other analyzers still use `0.5` for observations while workflow findings use `DEEPTRACE_DECISION_THRESHOLD`; keep that setting at 0.5 for their existing policies. The face-only PoC rule is documented in `MODEL_REGISTRY.md`.
 - **Whole-frame findings ignore the aggregate rule.** `SceneVideoAnalyzer` raises an observation only when the frame mean ≥ 0.5, but `detection_from_component` still creates a finding for every frame ≥ threshold.
-- **Dead or unwired code:** `CombinedVideoAnalyzer` (max fusion; only tests use it), `storage.py` (`get_store`/`S3ObjectStore` unused), `DEEPTRACE_USE_MOCK_DETECTORS` and `MockVideoDetector`/`MockAudioDetector` (not wired), `visual_weight` (accepted by `build_report`, unused), `EfficientNetB4Detector`/`AASISTDetector` wrappers (tests only).
-- **Synchronous inference** inside the HTTP request, model reload per request (subprocess), sequential detectors. Suitable for a PoC only.
+- **Dead or unwired code:** `CombinedVideoAnalyzer` (max fusion; only tests use it), `DEEPTRACE_USE_MOCK_DETECTORS` and `MockVideoDetector`/`MockAudioDetector` (not wired), `visual_weight` (accepted by `build_report`, unused), `EfficientNetB4Detector`/`AASISTDetector` wrappers (tests only).
+- **Synchronous inference** inside the HTTP request. Model reload per request and sequential detectors remain the defaults. Warm workers and parallel detectors are opt-in ([MODEL_ORCHESTRATION.md](MODEL_ORCHESTRATION.md)) and are not yet a job queue. Suitable for a PoC only.
 - **`/v1/analyze` orchestration lives in the route function** rather than a service.
 The explicit local PoC launcher additionally configures subprocess-only CNNDetection and LFCC-LCNN artifact adapters. They append independent results through the same component-to-ModelRun persistence boundary. SOFTNet is a separate interval-spotting subprocess whose output is a supplementary ReviewCheck, never a fake-score component. No neural library is imported by the API, no database column is added, and existing authorization/storage boundaries are preserved. Dataset-dependent benchmarking remains outside request-time analysis.

@@ -189,7 +189,7 @@ export function AnalysisWorkspace({id}: {id: string}) {
 
   return <div className="case-workspace">
     {analysis.development_mock && <p className="mock-banner">Development mock adapter. These values are not model predictions.</p>}
-    <CaseCommand caseId={analysis.id} filename={analysis.media.filename} status={analysis.status} tourId={guide.tourId} userKey={userKey}/>
+    <CaseCommand caseId={analysis.id} filename={analysis.media.filename} status={analysis.status} mediaKind={analysis.media.media_kind} duration={duration} tourId={guide.tourId} userKey={userKey}/>
     <div className="analysis-tabs" role="tablist" aria-label="Analysis views" onKeyDown={event => {
       if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
       event.preventDefault();
@@ -201,9 +201,8 @@ export function AnalysisWorkspace({id}: {id: string}) {
       <button type="button" role="tab" id="analysis-tab-technical" aria-selected={technical} aria-controls="analysis-view-panel" tabIndex={technical ? 0 : -1} onClick={() => setView('technical')}>Technical details</button>
     </div>
     <section className="analysis-view" role="tabpanel" id="analysis-view-panel" aria-labelledby={`analysis-tab-${view}`} tabIndex={0}>
-    {technical ? <TechnicalResults analysis={analysis}/> : <OfficerSummary analysis={analysis} selectedId={selected?.id} onReviewFinding={finding => {
+    {technical ? <TechnicalResults analysis={analysis}/> : <OfficerSummary analysis={analysis} onReviewFinding={finding => {
       selectFinding(finding);
-      mediaRef.current?.scrollIntoView?.({block: 'center'});
       mediaRef.current?.focus();
     }}/>}
     <div className="case-grid">

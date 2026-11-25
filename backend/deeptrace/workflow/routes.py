@@ -46,10 +46,9 @@ def workflow_analysis(analysis_id: str, user: dict = Depends(require_user), sess
 
 @router.get("/v1/analyses/{analysis_id}/media")
 def workflow_media(analysis_id: str, user: dict = Depends(require_user), session: Session = Depends(get_session)) -> FileResponse:
-    path = _call(lambda: service.media_path(session, user, analysis_id))
-    from pathlib import Path
-    media = Path(path)
-    if not media.is_file():
+    from deeptrace.storage import resolve_media
+    media = resolve_media(_call(lambda: service.media_path(session, user, analysis_id)))
+    if media is None:
         raise HTTPException(status_code=404, detail="Media not found")
     return FileResponse(media, filename=media.name)
 

@@ -164,6 +164,82 @@ def test_assistant_cites_findings_and_does_not_declare_a_deepfake(monkeypatch):
     assert "cannot establish" in refused["answer"]
 
 
+def test_bedrock_assistant_caches_the_video_timeline_and_deletes_it_with_the_report(monkeypatch, tmp_path):
+    from sqlalchemy import select, update
+
+    from deeptrace.db.models import MediaFile, MediaObservation
+    from deeptrace.db.session import session_scope
+
+    calls: list[str] = []
+
+    class FakeBedrock:
+        def converse(self, **kwargs):
+            calls.append(kwargs["modelId"])
+            reply = '{"segments": [{"start": 0, "end": 1, "scene": "office"}]}' if kwargs["modelId"] == "nova" else "The timeline shows an office."
+            return {"output": {"message": {"role": "assistant", "content": [{"text": reply}]}}, "stopReason": "end_turn"}
+
+    monkeypatch.setattr(settings, "assistant_provider", "bedrock")
+    monkeypatch.setattr(settings, "bedrock_answer_model", "haiku")
+    monkeypatch.setattr(settings, "bedrock_video_model", "nova")
+    monkeypatch.setattr("deeptrace.ml.bedrock_assistant.bedrock_client", lambda region: FakeBedrock())
+    headers = login("dps.employee", "analyst-pass")
+    report = analyze(headers)
+    analysis_id = report["analysis_id"]
+    clip = tmp_path / "clip.mp4"
+    clip.write_bytes(b"not-a-real-video")
+    with session_scope() as session:  # the test upload is audio; point the case at a video file
+        session.execute(update(MediaFile).where(MediaFile.analysis_id == analysis_id).values(
+            storage_key=str(clip), content_type="video/mp4"))
+
+    for _ in range(2):
+        answer = client.post(f"/v1/analyses/{analysis_id}/assistant", headers=headers, json={"question": "What is shown?"})
+        assert answer.status_code == 200
+        assert answer.json()["provider"] == "bedrock"
+    assert calls == ["nova", "haiku", "haiku"]
+    with session_scope() as session:
+        assert session.scalar(select(MediaObservation.model_id).where(MediaObservation.analysis_id == analysis_id)) == "nova"
+
+    assert client.delete(f"/v1/reports/{report['report_id']}", headers=headers).status_code == 204
+    with session_scope() as session:
+        assert session.scalar(select(MediaObservation).where(MediaObservation.analysis_id == analysis_id)) is None
+
+
+def test_s3_backend_keeps_media_in_the_bucket_through_playback_and_delete(monkeypatch, tmp_path):
+    import shutil
+
+    from deeptrace import storage
+
+    bucket = tmp_path / "bucket"
+
+    class FakeS3:
+        def upload_file(self, source, name, key):
+            (bucket / name / key).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, bucket / name / key)
+
+        def download_file(self, name, key, target):
+            shutil.copy2(bucket / name / key, target)
+
+        def delete_object(self, Bucket, Key):
+            (bucket / Bucket / Key).unlink()
+
+    monkeypatch.setattr(storage, "_s3_client", lambda: FakeS3())
+    monkeypatch.setattr(settings, "storage_backend", "s3")
+    monkeypatch.setattr(settings, "s3_bucket", "case-media")
+    headers = login("dps.employee", "analyst-pass")
+    report = analyze(headers)
+    stored = bucket / "case-media/deeptrace/media" / report["report_id"] / "clip.wav"
+    assert stored.is_file()
+
+    shutil.rmtree(settings.report_media_dir / "s3-cache")  # simulate a fresh host: playback re-downloads
+    for url in (f"/v1/analyses/{report['analysis_id']}/media", f"/v1/reports/{report['report_id']}/media"):
+        media = client.get(url, headers=headers)
+        assert media.status_code == 200
+        assert media.content == stored.read_bytes()
+
+    assert client.delete(f"/v1/reports/{report['report_id']}", headers=headers).status_code == 204
+    assert not stored.exists()
+
+
 def test_admin_creates_a_directory_user_and_audit_is_not_writable():
     admin = login("dps.admin", "admin-pass")
     created = client.post("/v1/users", headers=admin, json={

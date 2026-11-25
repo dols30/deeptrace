@@ -6,6 +6,7 @@ import subprocess
 from pathlib import Path
 
 from deeptrace.analyzers.base import MediaAnalyzer, command_args
+from deeptrace.analyzers.runner import run_command
 from deeptrace.ml.decision_rules import EFFICIENTNET_POC_RULE, EFFICIENTNET_RULES
 from deeptrace.schemas import Anomaly, ComponentResult, MediaMetadata, ModelSample
 
@@ -46,9 +47,7 @@ class VideoCommandAnalyzer(MediaAnalyzer):
                 model_version="unconfigured", detector_id=self.detector_id, task=self.task,
                 notes=[f"Set {self.command_setting} after installing reviewed code and weights."])
         try:
-            result = subprocess.run(self._runner_command(path), capture_output=True,
-                text=True, timeout=900, check=True)
-            payload = json.loads(result.stdout)
+            payload = json.loads(run_command(self._runner_command(path), timeout=900))
             self._validate_policy(payload)
             self.last_profile = payload
             scores = [float(item["fake_probability"]) for item in payload["samples"]]

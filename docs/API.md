@@ -85,7 +85,7 @@ All in `backend/deeptrace/workflow/routes.py` → `service.py`; schemas in `work
 | `POST /v1/analyses/{id}/report/submit` | → `SUPERVISOR_REVIEW`, assigns `DEEPTRACE_SUPERVISOR_USERNAME` | owner investigator | 403, 409 |
 | `POST /v1/analyses/{id}/report/request-changes` | `{body}` → `CHANGES_REQUESTED` + comment | supervisor | 403, 409, 422 |
 | `POST /v1/analyses/{id}/report/finalize` | → `FINALIZED` | supervisor | 403, 409 |
-| `POST /v1/analyses/{id}/assistant` | `{question, history[≤12]}` → `{answer, citations, advisory_only, provider}` | readable | 404 |
+| `POST /v1/analyses/{id}/assistant` | `{question, history[≤12]}` → `{answer, citations, advisory_only, provider}`; `provider` is `rules`, `gemini`, `gemini-without-media`, `bedrock` or `bedrock-without-media` | readable | 404 |
 | `GET /v1/audit?analysis_id=` | Up to 200 audit events | supervisor, admin; investigators see own analyses; reviewers 403 | 403 |
 | `GET /v1/settings/models` | Configured models, decision threshold, preprocessing, limitation | any | — |
 | `GET /v1/users` · `POST /v1/users` · `PATCH /v1/users/{username}` | Directory users (password ≥ 8 chars, PBKDF2) | administrator | 403 |
@@ -153,7 +153,7 @@ Not HTTP, but a contract: `analyzers/` ↔ `scripts/inference/*`. Commands are `
 - `AdvisoryReport.processing` defaults to `{}`. New responses include screening status, elapsed_seconds up to report persistence, and media_storage/workflow_storage/report_storage (`saved` or `unavailable`; internal pending states are replaced before return). No stored report is claimed when media retention fails. Storage failures do not erase the in-memory report response.
 - `AnalysisDetail.review_checks` and `ModelRunOut.coverage` expose the same persisted data in the workspace. Existing JSON metadata columns carry these additions; no database migration or column change is required. Old rows return empty/absent values.
 - Accepted uploads with absent/octet-stream MIME can use the six PoC extensions to determine the declared media category; unknown extensions remain rejected. Metadata decoding still records failures. JPEG extraction explicitly uses yuvj420p; sub-interval videos fall back to a single initial frame if the fps filter produces none.
-- `DEEPTRACE_DEPLOYMENT_MODE=sandbox` refuses missing authentication configuration, wildcard browser origins, and the external media assistant. It does not replace network isolation, provisioning, TLS, or agency acceptance. Local mode remains available for synthetic functional tests.
+- `DEEPTRACE_DEPLOYMENT_MODE=sandbox` refuses missing authentication configuration, wildcard browser origins, and the external Gemini media assistant (the `rules` and in-account `bedrock` assistants are allowed). It does not replace network isolation, provisioning, TLS, or agency acceptance. Local mode remains available for synthetic functional tests.
 
 Accuracy and false-positive acceptance work is deferred at the user's request pending the next dataset discussion. Public/synthetic functional inputs are not treated as an approved labeled validation set.
 ## Optional PoC artifact records

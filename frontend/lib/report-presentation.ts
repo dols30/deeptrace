@@ -79,7 +79,3 @@ export function observation(code: string, description: string) {
     LIMITED_FACE_COVERAGE: {title: 'Face coverage', description: 'Too few sampled frames contained a usable face.'},
   } as Record<string, {title: string; description: string}>)[code] ?? {title: code.replaceAll('_', ' ').toLowerCase(), description};
 }
-
-export const REPORT_STATUS_LABELS = {
-  draft: 'Draft', submitted: 'Submitted for review', in_review: 'In review', reviewed: 'Review complete',
-} as const;

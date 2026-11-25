@@ -3,6 +3,8 @@ import {cleanup,render,screen,fireEvent,waitFor} from '@testing-library/react';
 import {Screening} from './screening';
 import {ReportView} from './report';
 import type {Report} from '../lib/api';
+const {getModelInfo}=vi.hoisted(()=>({getModelInfo:vi.fn()}));
+vi.mock('../lib/workflow',async importOriginal=>({...await importOriginal<object>(),getModelInfo}));
 const {analyze,expire,listReports,getReport,submitReport,getReportMedia,listComments,getNotebook,addComment,saveNotebook,startReview,completeReview,authState}=vi.hoisted(()=>({
   analyze:vi.fn(),expire:vi.fn(),listReports:vi.fn(),getReport:vi.fn(),submitReport:vi.fn(),getReportMedia:vi.fn(),listComments:vi.fn(),getNotebook:vi.fn(),addComment:vi.fn(),saveNotebook:vi.fn(),startReview:vi.fn(),completeReview:vi.fn(),
   authState:{ready:true,config:{enabled:false},token:null as string|null,role:null as 'analyst'|'supervisor'|null,error:'',expire:vi.fn()},
@@ -15,10 +17,10 @@ Element.prototype.scrollIntoView=vi.fn();
 
 it('shows the exact recorded PoC threshold in technical details',()=>{
   render(<ReportView report={{...report,components:[{...report.components[0],component:'video',task:'face_manipulation',status:'functional',raw_score:.8,threshold:.9967585206031799}]}} onReset={()=>{}}/>);
-  fireEvent.click(screen.getByRole('radio',{name:'Technical details'}));
+  fireEvent.click(screen.getByRole('radio',{name:'Technical detail'}));
   expect(screen.getByText('0.9967585206031799')).toBeTruthy();
 });
-beforeEach(()=>{listComments.mockResolvedValue([]);getNotebook.mockResolvedValue({report_id:'test',author:'user',body:'',updated_at:'2026-09-06'});getReportMedia.mockResolvedValue(new Blob(['media']));});
+beforeEach(()=>{getModelInfo.mockRejectedValue(new Error('offline'));listComments.mockResolvedValue([]);getNotebook.mockResolvedValue({report_id:'test',author:'user',body:'',updated_at:'2026-09-06'});getReportMedia.mockResolvedValue(new Blob(['media']));});
 afterEach(()=>{cleanup();authState.token=null;authState.role=null;vi.clearAllMocks();});
 it('starts clean instead of restoring a previous report',()=>{
   authState.token='token';
@@ -53,13 +55,13 @@ it('expires the session on unauthorized analysis',async()=>{
 });
 it('renders model output as text rather than HTML',()=>{
   render(<ReportView report={{...report,summary:'<img src=x onerror=alert(1)>'}} onReset={()=>{}}/>);
-  fireEvent.click(screen.getByRole('radio',{name:'Technical details'}));
+  fireEvent.click(screen.getByRole('radio',{name:'Technical detail'}));
   expect(screen.getByText('<img src=x onerror=alert(1)>')).toBeTruthy();expect(document.querySelector('.report img')).toBeNull();
 });
 it('shows detector model scores without a composite confidence',()=>{
   render(<ReportView report={{...report,overall_synthetic_confidence:.1734,components:[{...report.components[0],status:'functional',synthetic_confidence:.346697}]}} onReset={()=>{}}/>);
   expect(screen.queryByText('17.3%')).toBeNull();
-  fireEvent.click(screen.getByRole('radio',{name:'Technical details'}));
+  fireEvent.click(screen.getByRole('radio',{name:'Technical detail'}));
   expect(screen.getByText('0.347')).toBeTruthy();
   expect(screen.getByText(/No cross-detector average/)).toBeTruthy();
 });
@@ -69,11 +71,11 @@ it('defaults to a plain-language overview and lets technical users switch detail
   expect((screen.getByRole('radio',{name:'Overview'}) as HTMLInputElement).checked).toBe(true);
   expect(screen.getByText('Advisory screening · requires qualified review')).toBeTruthy();
   expect(screen.getByRole('heading',{name:'Possible manipulation flagged'})).toBeTruthy();
-  expect(screen.getByText('Flagged for review')).toBeTruthy();
+  expect(screen.getByText('Flagged')).toBeTruthy();
   expect(screen.getByRole('heading',{name:'Findings'})).toBeTruthy();
   expect(screen.queryByText('Technical description')).toBeNull();
-  fireEvent.click(screen.getByRole('radio',{name:'Technical details'}));
-  expect((screen.getByRole('radio',{name:'Technical details'}) as HTMLInputElement).checked).toBe(true);
+  fireEvent.click(screen.getByRole('radio',{name:'Technical detail'}));
+  expect((screen.getByRole('radio',{name:'Technical detail'}) as HTMLInputElement).checked).toBe(true);
   expect(screen.getByText('Technical description')).toBeTruthy();
 });
 
@@ -106,7 +108,7 @@ it('keeps metadata warnings out of the manipulation assessment and retains techn
   render(<ReportView report={{...report,components:[{...report.components[0],status:'functional',raw_score:.2,threshold:.5,limitations:['Limited to the analyzed speech window.'],samples:[{start_time:0,end_time:4.0375,raw_score:.2,raw_logits:[-.2,.7]}]}],anomalies:[warning]}} onReset={()=>{}}/>);
   expect(screen.getByRole('heading',{name:'No manipulation detected'})).toBeTruthy();
   expect(screen.queryByText('Metadata read warning')).toBeNull();
-  fireEvent.click(screen.getByRole('radio',{name:'Technical details'}));
+  fireEvent.click(screen.getByRole('radio',{name:'Technical detail'}));
   expect(screen.getByText('Metadata read warning')).toBeTruthy();
   expect(screen.getByText('Limited to the analyzed speech window.')).toBeTruthy();
   expect(screen.getByRole('columnheader',{name:'Raw logits',hidden:true})).toBeTruthy();
@@ -150,4 +152,25 @@ it('downloads the report as a PDF',async()=>{
   expect(blob.type).toBe('application/pdf');
   expect(await blob.text()).toMatch(/^%PDF-1\.4/);
   expect(click).toHaveBeenCalledOnce();
+});
+
+const modelInfo={video_model:'efficientnetb4',video_configured:true,scene_model:'community_forensics',scene_configured:false,audio_model:'aasist',audio_configured:true,
+  supplementary_methods:[{task:'GAN artifacts',model:'CNNDetection ResNet-50',configured:true,kind:'detector' as const},{task:'Vocoder artifacts',model:'LFCC-LCNN (ASVspoof DF)',configured:true,kind:'detector' as const}],
+  decision_threshold:.5,calibration_version:null,preprocessing:{video:'',audio:''},limitation:'',note:''};
+it('lists the configured models that apply to the file while analysis runs',async()=>{
+  getModelInfo.mockResolvedValue(modelInfo);analyze.mockReturnValue(new Promise(()=>{}));render(<Screening/>);
+  await waitFor(()=>expect(getModelInfo).toHaveBeenCalled());
+  fireEvent.change(screen.getByLabelText('Choose media file'),{target:{files:[new File(['a'],'x.wav',{type:'audio/wav'})]}});
+  fireEvent.click(screen.getByRole('button',{name:/Analyze file/}));
+  const list=await screen.findByRole('list',{name:'Models running on this file'});
+  expect(list.textContent).toContain('aasist');expect(list.textContent).toContain('LFCC-LCNN (ASVspoof DF)');
+  expect(list.textContent).not.toContain('efficientnetb4');expect(list.textContent).not.toContain('CNNDetection');
+  expect(list.textContent).not.toContain('community_forensics');
+});
+it('falls back to the plain analysis state when model information is unavailable',async()=>{
+  analyze.mockReturnValue(new Promise(()=>{}));render(<Screening/>);
+  fireEvent.change(screen.getByLabelText('Choose media file'),{target:{files:[new File(['a'],'x.wav',{type:'audio/wav'})]}});
+  fireEvent.click(screen.getByRole('button',{name:/Analyze file/}));
+  await screen.findByRole('status');
+  expect(screen.queryByRole('list',{name:'Models running on this file'})).toBeNull();
 });

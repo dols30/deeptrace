@@ -1,7 +1,9 @@
 'use client';
 import {useEffect, useRef, useState} from 'react';
 import {analyze, formatBytes, type Report} from '../lib/api';
+import {getModelInfo} from '../lib/workflow';
 import {useAuth} from './auth';
+import {methodsForMedia, type ModelInformationData} from './model-information';
 import {ReportView} from './report';
 import {TraceLoadingMark} from './trace/trace-mark';
 
@@ -13,6 +15,8 @@ export function Screening() {
   const [drag, setDrag] = useState(false);
   const [error, setError] = useState('');
   const [report, setReport] = useState<Report | null>(null);
+  const [modelInfo, setModelInfo] = useState<ModelInformationData | null>(null);
+  const [elapsed, setElapsed] = useState(0);
   const lock = useRef(false);
   const input = useRef<HTMLInputElement>(null);
 
@@ -25,6 +29,25 @@ export function Screening() {
     setPreview(url);
     return () => URL.revokeObjectURL(url);
   }, [file]);
+
+  // Configured models, so the analysis state can name what the backend is running. Optional: if this
+  // fails, the plain animation is shown.
+  useEffect(() => {
+    if (!auth.ready || (auth.config.enabled && !auth.token)) return;
+    let active = true;
+    getModelInfo(auth.token).then(info => { if (active) setModelInfo(info); }).catch(() => { if (active) setModelInfo(null); });
+    return () => { active = false; };
+  }, [auth.ready, auth.config.enabled, auth.token]);
+
+  useEffect(() => {
+    if (!busy) return;
+    setElapsed(0);
+    const started = Date.now();
+    const timer = window.setInterval(() => setElapsed(Math.floor((Date.now() - started) / 1000)), 1000);
+    return () => window.clearInterval(timer);
+  }, [busy]);
+
+  const running = file && modelInfo ? methodsForMedia(modelInfo, file.type.startsWith('video') ? 'video' : 'audio') : [];
 
   const choose = (next: File | null) => {
     if (lock.current) return;
@@ -111,7 +134,9 @@ export function Screening() {
                 {busy && (
                   <div className="trace-scope scan-visual" aria-hidden="true">
                     <div className="trace-scanline" />
-                    <div className="scan-readout">Analyzing file</div>
+                    <div className="scan-readout">
+                      {running.length ? `Running ${running.length} model${running.length === 1 ? '' : 's'}` : 'Analyzing file'}
+                    </div>
                   </div>
                 )}
               </div>
@@ -137,7 +162,19 @@ export function Screening() {
           <div>
             <TraceLoadingMark size={28} />
             <strong>Analyzing file</strong>
+            <span className="running-elapsed">{elapsed}s</span>
           </div>
+          {running.length > 0 && (
+            <ul className="running-models" aria-label="Models running on this file">
+              {running.map(method => (
+                <li key={method.task}>
+                  <span className="running-pulse" aria-hidden="true" />
+                  <span>{method.task}</span>
+                  <code>{method.model}</code>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       )}
 

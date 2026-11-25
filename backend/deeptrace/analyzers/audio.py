@@ -6,6 +6,7 @@ import subprocess
 from pathlib import Path
 
 from deeptrace.analyzers.base import MediaAnalyzer, command_args
+from deeptrace.analyzers.runner import run_command
 from deeptrace.schemas import Anomaly, ComponentResult, MediaMetadata, ModelSample
 
 
@@ -31,9 +32,7 @@ class AudioCommandAnalyzer(MediaAnalyzer):
                 model_version="unconfigured", detector_id=self.detector_id, task=self.task,
                 notes=[f"Set {self.command_setting} after installing reviewed code and weights."])
         try:
-            result = subprocess.run(self._command(path), capture_output=True,
-                text=True, timeout=900, check=True)
-            payload = json.loads(result.stdout)
+            payload = json.loads(run_command(self._command(path), timeout=900))
             self.last_profile = payload
             score = float(payload["fake_probability"])
             if not 0 <= score <= 1:

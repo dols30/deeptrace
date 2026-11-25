@@ -10,7 +10,7 @@ import math
 from time import perf_counter
 from pathlib import Path
 
-from common import checkpoint_id, probability, run
+from common import cached, checkpoint_id, file_key, probability, run
 
 SHORT_EDGE = 440
 CROP = 384
@@ -63,7 +63,7 @@ def apply_adaptation(model, config_path, base_weights):
     return config, checkpoint_id(head)
 
 
-def main():
+def main(argv=None):
     profile = {}
     workload = {}
     parser = argparse.ArgumentParser(description=__doc__)
@@ -74,7 +74,7 @@ def main():
     parser.add_argument('--adaptation', type=Path, help='Opt-in research head config; never enabled by default')
     parser.add_argument('--frames', type=Path, required=True)
     parser.add_argument('--device', choices=['cpu', 'cuda', 'mps'], default='cpu')
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     weights, frames = args.weights.resolve(), args.frames.resolve()
     if not weights.is_file():
         raise FileNotFoundError(weights)
@@ -98,16 +98,24 @@ def main():
         'torch_num_interop_threads': torch.get_num_interop_threads(), 'batch_size': 1})
 
     started = perf_counter()
-    model = timm.create_model('vit_small_patch16_384', pretrained=False, num_classes=1)
-    state = {k.removeprefix('vit.'): v for k, v in load_file(str(weights)).items()}
-    model.load_state_dict(state, strict=True)
-    adaptation, head_checkpoint = None, None
-    if args.adaptation:
-        if args.boundary is not None:
-            raise ValueError('An adapted head must use its frozen development boundary')
-        adaptation, head_checkpoint = apply_adaptation(model, args.adaptation.resolve(), weights)
+    if args.adaptation and args.boundary is not None:
+        raise ValueError('An adapted head must use its frozen development boundary')
+
+    def load():
+        model = timm.create_model('vit_small_patch16_384', pretrained=False, num_classes=1)
+        state = {k.removeprefix('vit.'): v for k, v in load_file(str(weights)).items()}
+        model.load_state_dict(state, strict=True)
+        adaptation, head_checkpoint = None, None
+        if args.adaptation:
+            adaptation, head_checkpoint = apply_adaptation(model, args.adaptation.resolve(), weights)
+        model.to(args.device).eval()
+        return model, adaptation, head_checkpoint
+
+    adaptation_files = (args.adaptation, args.adaptation.parent / 'head.safetensors') if args.adaptation else ()
+    model, adaptation, head_checkpoint = cached(
+        ('commfor', args.device, file_key(weights, *adaptation_files)), load)
+    if adaptation:
         boundary = adaptation['raw_logit_boundary']
-    model.to(args.device).eval()
     profile['model loading'] = perf_counter() - started
 
     samples = []

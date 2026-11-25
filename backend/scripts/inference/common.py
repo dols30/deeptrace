@@ -12,17 +12,59 @@ PINNED_REVISIONS = {
     'DeepfakeBench': 'f188b1c105465e2e5377eb536a95022ae0e4522d',
 }
 
+# Process-local caches. A one-shot runner process starts empty, so behaviour is unchanged. A warm
+# worker (worker.py) keeps them, so weights load and checkpoints hash once per process. Keys include
+# each file's size and mtime, so a replaced checkpoint is reloaded and re-hashed, never served stale.
+_LOADED = {}
+_CHECKPOINT_IDS = {}
+_REVISIONS = {}
+
+
+def file_key(*paths):
+    """Identity of input files for cache keys: resolved path, size and modification time."""
+    key = []
+    for path in paths:
+        resolved = Path(path).resolve()
+        stat = resolved.stat()
+        key.append((str(resolved), stat.st_size, stat.st_mtime_ns))
+    return tuple(key)
+
+
+def cached(key, load):
+    """Return load() once per key for the life of this process. Loaded models must stay read-only."""
+    if key not in _LOADED:
+        _LOADED[key] = load()
+    return _LOADED[key]
+
+
+def add_sys_path(path):
+    """Prepend an upstream source directory once, so warm workers do not grow sys.path per request."""
+    path = str(path)
+    if path not in sys.path:
+        sys.path.insert(0, path)
+
 
 def checkpoint_id(path):
     path = Path(path)
+    key = file_key(path)
+    if key in _CHECKPOINT_IDS:
+        return _CHECKPOINT_IDS[key]
     digest = hashlib.sha256()
     with path.open('rb') as stream:
         for chunk in iter(lambda: stream.read(1024 * 1024), b''):
             digest.update(chunk)
-    return f'{path.name}#sha256={digest.hexdigest()}'
+    _CHECKPOINT_IDS[key] = f'{path.name}#sha256={digest.hexdigest()}'
+    return _CHECKPOINT_IDS[key]
 
 
 def revision(repo):
+    key = str(Path(repo).resolve())
+    if key not in _REVISIONS:
+        _REVISIONS[key] = _revision(repo)
+    return _REVISIONS[key]
+
+
+def _revision(repo):
     revision_file = Path(repo) / '.deeptrace-revision'
     if revision_file.exists():
         return revision_file.read_text().strip()

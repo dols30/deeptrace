@@ -36,7 +36,12 @@ class Settings(BaseSettings):
     micro_expression_command: str | None = None
     review_signals_command: str | None = None
     review_signals_timeout_seconds: int = 300
-    parallel_review_checks: bool = False
+    # Orchestration. Both default to the previous behaviour: one-shot runner subprocesses, run one at a time.
+    # model_workers keeps each runner's model loaded in a long-lived worker process (analyzers/runner.py).
+    model_workers: bool = False
+    # Independent detectors run concurrently, up to this many at once. Each concurrent runner holds its own
+    # model in memory (RAM on CPU, VRAM on GPU), so raise this only as far as the host's memory allows.
+    max_parallel_runners: int = 1
     aasist_window_mode: Literal["first", "full"] = "first"
     deployment_mode: Literal["local", "sandbox"] = "local"
     visual_weight: float = 0.5
@@ -55,9 +60,14 @@ class Settings(BaseSettings):
     s3_bucket: str | None = None
     s3_prefix: str = "deeptrace"
     use_mock_detectors: bool = False
-    assistant_provider: Literal["rules", "gemini"] = "rules"
+    assistant_provider: Literal["rules", "gemini", "bedrock"] = "rules"
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-2.5-flash"
+    # Bedrock assistant: the answer model reads the case record and the video model's observations.
+    # IDs are cross-region inference profiles; confirm they are enabled for the account in the Bedrock console.
+    bedrock_region: str | None = None
+    bedrock_answer_model: str = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+    bedrock_video_model: str = "us.amazon.nova-lite-v1:0"
     decision_threshold: float = 0.5
     reviewer_username: str | None = None
     reviewer_password: str | None = None
@@ -86,8 +96,12 @@ class Settings(BaseSettings):
             raise ValueError("DEEPTRACE_DECISION_THRESHOLD must be between 0 and 1")
         if self.efficientnet_decision_rule == "ffpp_c23_kaggle_v1" and (self.frame_interval_seconds != 1.0 or self.max_frames != 120):
             raise ValueError("The FF++ c23 PoC rule requires the benchmark's 1-second interval and 120-frame cap")
+        if self.storage_backend == "s3" and not self.s3_bucket:
+            raise ValueError("DEEPTRACE_S3_BUCKET is required when DEEPTRACE_STORAGE_BACKEND=s3")
         if self.review_signals_timeout_seconds < 1:
             raise ValueError("Review signal timeout must be positive")
+        if not 1 <= self.max_parallel_runners <= 16:
+            raise ValueError("DEEPTRACE_MAX_PARALLEL_RUNNERS must be between 1 and 16")
         if self.deployment_mode == "sandbox":
             if not self.auth_enabled:
                 raise ValueError("Sandbox mode requires authentication")
@@ -97,8 +111,9 @@ class Settings(BaseSettings):
                 raise ValueError("Sandbox Cognito access requires a pool, region, and application client")
             if "*" in self.frontend_origins:
                 raise ValueError("Sandbox mode requires explicit frontend origins")
-            if self.assistant_provider != "rules":
-                raise ValueError("Sandbox mode keeps media processing local; use the rules assistant")
+            # Bedrock runs inside the deployment's own AWS account; Gemini would send media to an outside provider.
+            if self.assistant_provider not in ("rules", "bedrock"):
+                raise ValueError("Sandbox mode keeps media inside the AWS account; use the rules or bedrock assistant")
 
 
 settings = Settings()

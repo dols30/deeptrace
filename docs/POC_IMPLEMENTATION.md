@@ -14,7 +14,7 @@ From `backend/`, using the API environment:
 
 This binds to 127.0.0.1:8000 (`PORT` can select another local port), opts into full AASIST windows, CNNDetection GAN-artifact screening, LFCC-LCNN spectral/vocoder-artifact screening, SOFTNet expression spotting and supplementary measurements. Credentials, authentication and ordinary model selectors are preserved. Install the optional assets/runtime as described in [models setup](../backend/docs/models.md). No new model is promoted into ordinary API defaults. The frontend API base must point at the selected local port.
 
-For a restricted acceptance sandbox, configure real accounts/secret or Cognito and set `DEEPTRACE_DEPLOYMENT_MODE=sandbox`. Startup checks reject missing auth configuration, wildcard origins and external media assistants. These checks supplement network isolation, restricted provisioning and deployment review; they do not prove those controls are installed.
+For a restricted acceptance sandbox, configure real accounts/secret or Cognito and set `DEEPTRACE_DEPLOYMENT_MODE=sandbox`. Startup checks reject missing auth configuration, wildcard origins and the external Gemini media assistant; the `rules` and in-account `bedrock` assistants are allowed. These checks supplement network isolation, restricted provisioning and deployment review; they do not prove those controls are installed.
 
 ## Implemented in this update
 
