@@ -42,7 +42,7 @@ export function DetectorReadouts({states, example = false}: {states: Record<Lane
         </li>;
       })}
     </ol>
-    <p className="trace-footnote">Uncalibrated model scores, not probabilities. Results are never combined.{example && ' Threshold 0.50 is not DPS-validated.'}</p>
+    <p className="trace-footnote">Uncalibrated model scores, not probabilities. Results are never combined.{example && ' This example uses a threshold of 0.50.'}</p>
     {example && <Terms />}
   </>;
 }

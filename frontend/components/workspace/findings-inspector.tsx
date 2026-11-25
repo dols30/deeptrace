@@ -88,7 +88,7 @@ export function FindingsInspector({
         <div><dt>Estimated probability</dt><dd>{selected.calibrated_probability == null ? 'Not available' : selected.calibrated_probability.toFixed(2)}</dd></div>
         <div><dt>Model</dt><dd>{selected.model_name} {selected.model_version}</dd></div>
       </dl>
-      <p className="threshold-note">Development threshold; not yet DPS-validated.</p>
+      <p className="threshold-note">Development threshold.</p>
       <details className="technical-finding-output"><summary>Raw detector output</summary><dl>
         <div><dt>Score scope</dt><dd>{selected.score_scope}</dd></div>
         <div><dt>Preprocessing version</dt><dd>{selected.preprocessing_version}</dd></div>

@@ -102,7 +102,7 @@ it('keeps file provenance and model output in the technical view', () => {
   expect(screen.getByText('video/mp4')).toBeTruthy();
   expect(screen.getByText('SHA-256')).toBeTruthy();
   expect(screen.getByText('0.27')).toBeTruthy();
-  expect(screen.getByText(/not yet DPS-validated/)).toBeTruthy();
+  expect(screen.getByText('Thresholds shown here are development rules.')).toBeTruthy();
 });
 
 it('uses recorded full-window coverage instead of the legacy four-second notice',()=>{

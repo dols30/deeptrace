@@ -15,7 +15,18 @@ const contents = async (value:Report) => createReportPdf(value).text();
 it('preserves the exact face PoC threshold in the export',async()=>{
   const pdf=await contents({...report,components:[{...report.components[0],threshold:0.9967585206031799}]});
   expect(pdf).toContain('(0.9967585206031799)');
-  expect(pdf).toContain('Not DPS-validated');
+  expect(pdf).toContain('Development rule');
+});
+
+it('uses current threshold wording in exports of saved reports', async () => {
+  const pdf = await contents({
+    ...report,
+    methods: ["Each detector's recorded development/default decision rule is not a validated DPS operational threshold."],
+    components: [{...report.components[0], notes: ['Small matched-domain benchmark only; not a validated DPS operational threshold.']}],
+  });
+  expect(pdf).toContain('The recorded decision rules are provisional.');
+  expect(pdf).toContain('The benchmark covered a small set of similar recordings.');
+  expect(pdf).not.toContain('validated DPS');
 });
 
 it('exports a readable overview and technical record without a fused probability',async()=>{
@@ -27,7 +38,7 @@ it('exports a readable overview and technical record without a fused probability
   expect(pdf).toContain('(0.936)');
   expect(pdf).not.toContain('93.6%');
   expect(pdf).not.toContain('99.9%');
-  for(const value of ['Not DPS-validated','Recorded detector observation.','Original automated narrative.','Recorded limitation.','Recorded method.','https://example.com/reference','-0.123456789, 0.87654321']) expect(pdf).toContain(value);
+  for(const value of ['Development rule','Recorded detector observation.','Original automated narrative.','Recorded limitation.','Recorded method.','https://example.com/reference','-0.123456789, 0.87654321']) expect(pdf).toContain(value);
   expect(pdf).toContain('Authenticity is undetermined.');
   expect(pdf).not.toContain('Advisory screening - qualified human review required');
   expect(pdf).toContain('Interview \\(\\351t\\351\\).mp4');

@@ -221,7 +221,7 @@ export function DesignLab() {
           <div className="trace-type">
             <p className="trace-type-display">Can you trust what you see and hear?</p>
             <p>Body copy stays short and literal. A model score is not a probability.</p>
-            <p className="trace-type-mono">FRAME 06 / 10 · 00:05.0 · SCORE 0.58 · RULE 0.50 (NOT DPS-VALIDATED)</p>
+            <p className="trace-type-mono">FRAME 06 / 10 · 00:05.0 · SCORE 0.58 · DEVELOPMENT RULE 0.50</p>
           </div>
         </section>
 

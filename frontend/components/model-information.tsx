@@ -49,11 +49,11 @@ export function ModelInformation({data}: {data: ModelInformationData}) {
         <dl className="model-facts">
           <div>
             <dt>Face decision threshold</dt>
-            <dd><strong className="model-threshold">{(data.face_decision_threshold ?? data.decision_threshold).toString()}</strong><span>{data.face_decision_rule === 'ffpp_c23_kaggle_v1' ? 'Development-selected PoC rule' : 'Development rule'} · not DPS-validated</span></dd>
+            <dd><strong className="model-threshold">{(data.face_decision_threshold ?? data.decision_threshold).toString()}</strong><span>{data.face_decision_rule === 'ffpp_c23_kaggle_v1' ? 'Development-selected PoC rule' : 'Development rule'}</span></dd>
           </div>
           <div>
             <dt>Other workflow thresholds</dt>
-            <dd><strong className="model-threshold">{data.decision_threshold.toFixed(2)}</strong><span>Development rule · not DPS-validated</span></dd>
+            <dd><strong className="model-threshold">{data.decision_threshold.toFixed(2)}</strong><span>Development rule</span></dd>
           </div>
           <div>
             <dt>Calibration</dt>

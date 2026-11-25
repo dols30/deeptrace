@@ -1,7 +1,7 @@
 import type {ReactNode} from 'react';
 import {formatBytes, formatModelScore, type ComponentResult, type Report} from '../lib/api';
 import {Terms} from './terms';
-import {assessment, audioCoverage, coverageDescription, label, observation, outcome, score, time} from '../lib/report-presentation';
+import {assessment, audioCoverage, coverageDescription, label, formatScreeningNote, observation, outcome, score, time} from '../lib/report-presentation';
 import {ReviewChecks} from './review-checks';
 
 function Facts({items}: {items: [string, ReactNode][]}) {
@@ -72,7 +72,7 @@ function DetectorEvidence({component}: {component: ComponentResult}) {
           ['Flag threshold', component.thresholds?.flag == null ? 'Not reported' : component.thresholds.flag.toString()],
           ['Flagged timestamps', component.timestamps_seconds.length ? component.timestamps_seconds.map(time).join(', ') : 'None returned'],
         ]}/>
-        {!!notes.length && <ul className="report-text-list">{notes.map(note => <li key={note}>{note}</li>)}</ul>}
+        {!!notes.length && <ul className="report-text-list">{notes.map(note => <li key={note}>{formatScreeningNote(note)}</li>)}</ul>}
       </details>
       {!!component.samples?.length && <details className="report-detail"><summary>Sample results ({component.samples.length})</summary>
         <div className="report-table-scroll"><table className="report-sample-table"><thead><tr><th scope="col">Reported time</th><th scope="col">Model score</th><th scope="col">Raw logits</th></tr></thead><tbody>{component.samples.map((sample, sampleIndex) => <tr key={sampleIndex}>
@@ -99,7 +99,7 @@ export function ReportTechnical({report}: {report: Report}) {
             </details></th>
             <td><span className={`report-state ${status.tone}`}>{status.text}</span></td>
             <td>{value == null ? 'Not available' : value.toFixed(3)}</td>
-            <td>{component.threshold ?? 'Not reported'}{component.threshold != null && <span className="report-value-note">{validated ? 'Validation recorded' : 'Not DPS-validated'}</span>}</td>
+            <td>{component.threshold ?? 'Not reported'}{component.threshold != null && <span className="report-value-note">{validated ? 'Validation recorded' : 'Development rule'}</span>}</td>
           </tr>;
         })}</tbody>
       </table></div> : <p className="technical-empty">No detector runs were recorded for this report.</p>}
@@ -120,7 +120,7 @@ export function ReportTechnical({report}: {report: Report}) {
       <section><h3>Automated summary</h3><p>{report.summary}</p></section>
       <section><h3>Scope and review</h3><p>{report.examination_scope}</p><p>{report.review_status}</p></section>
       {report.processing && <section><h3>Processing record</h3><Facts items={Object.entries(report.processing).map(([key,value]) => [key.replaceAll('_',' '),String(value)])}/></section>}
-      <section><h3>Methods</h3>{report.methods.length ? <ul className="report-text-list">{report.methods.map((item, index) => <li key={index}>{item}</li>)}</ul> : <p>Not recorded.</p>}</section>
+      <section><h3>Methods</h3>{report.methods.length ? <ul className="report-text-list">{report.methods.map((item, index) => <li key={index}>{formatScreeningNote(item)}</li>)}</ul> : <p>Not recorded.</p>}</section>
       <section><h3>Limitations</h3><p>{report.disclaimer}</p>{!!report.limitations.length && <ul className="report-text-list">{report.limitations.map((item, index) => <li key={index}>{item}</li>)}</ul>}</section>
       {!!Object.keys(report.integrity).length && <section><h3>Integrity record</h3><Facts items={Object.entries(report.integrity).map(([key, value]) => [key.replaceAll('_', ' '), value])}/></section>}
       <section><h3>Recommended action</h3><p>{report.recommended_action}</p></section>

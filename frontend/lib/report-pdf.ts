@@ -1,5 +1,5 @@
 import {formatBytes, type ComponentResult, type Report} from './api';
-import {assessment, coverageDescription, label, observation, outcome, score, time} from './report-presentation';
+import {assessment, coverageDescription, label, formatScreeningNote, observation, outcome, score, time} from './report-presentation';
 import {HELVETICA, HELVETICA_BOLD} from './pdf-font-metrics';
 
 type Font = 'F1' | 'F2' | 'F3';
@@ -316,7 +316,7 @@ export function createReportPdf(report: Report): Blob {
       ['Decision threshold',component.threshold == null ? 'Not reported' : component.threshold.toString()],
     ]);
     const validated = component.threshold_validated ?? component.threshold_validation?.validated ?? false;
-    doc.field('Threshold validation',validated ? 'Validation recorded' : 'Not DPS-validated');
+    doc.field('Threshold status',validated ? 'Validation recorded' : 'Development rule');
     doc.field('Estimated probability',component.calibrated_probability == null ? 'Not available - calibration not fitted' : number(component.calibrated_probability,4));
     doc.field('Screened coverage',coverage(component,report));
     doc.field('Model',component.detector_name ?? component.model_name);
@@ -335,7 +335,7 @@ export function createReportPdf(report: Report): Blob {
     }
     doc.field('Flagged timestamps',component.timestamps_seconds.length ? component.timestamps_seconds.map(time).join(', ') : 'None returned');
     const notes = [...new Set([...(component.notes ?? []), ...(component.limitations ?? [])])];
-    if (notes.length) { doc.heading('Processing notes and limitations',false); doc.section = 'A.' + (index + 1) + ' ' + label(component,index); doc.bullets(notes); }
+    if (notes.length) { doc.heading('Processing notes and limitations',false); doc.section = 'A.' + (index + 1) + ' ' + label(component,index); doc.bullets(notes.map(formatScreeningNote)); }
     if (component.samples?.length) {
       doc.heading('Sample results (' + component.samples.length + ')',false);
       doc.section = 'A.' + (index + 1) + ' ' + label(component,index) + ' / samples';
@@ -370,7 +370,7 @@ export function createReportPdf(report: Report): Blob {
   doc.field('Review status',report.review_status);
   doc.field('Recommended action',report.recommended_action);
   doc.heading('B.4 Methods');
-  if (report.methods.length) doc.bullets(report.methods); else doc.paragraph('No methods recorded.');
+  if (report.methods.length) doc.bullets(report.methods.map(formatScreeningNote)); else doc.paragraph('No methods recorded.');
   doc.heading('B.5 Integrity record');
   const integrity = Object.entries(report.integrity);
   if (integrity.length) integrity.forEach(([key,value]) => doc.field(human(key),value));

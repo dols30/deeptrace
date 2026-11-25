@@ -3,7 +3,7 @@ import {clock, type AnalysisDetail, type Finding} from '../../lib/workflow';
 import {Terms} from '../terms';
 import {detectorTask} from './findings-inspector';
 import {ReviewChecks} from '../review-checks';
-import {audioCoverage, coverageDescription, limitedFaceCoverage} from '../../lib/report-presentation';
+import {audioCoverage, coverageDescription, formatScreeningNote, limitedFaceCoverage} from '../../lib/report-presentation';
 
 type ModelRun = AnalysisDetail['model_runs'][number];
 
@@ -123,7 +123,7 @@ export function TechnicalResults({analysis}: {analysis: AnalysisDetail}) {
     <section className="technical-block" aria-labelledby="detector-evidence-title">
       <div className="technical-block-heading">
         <h3 id="detector-evidence-title">Detector evidence</h3>
-        <p>Development thresholds are not yet DPS-validated.</p>
+        <p>Thresholds shown here are development rules.</p>
       </div>
       {analysis.model_runs.length ? <div className="report-table-scroll">
         <table className="technical-evidence-table">
@@ -140,7 +140,7 @@ export function TechnicalResults({analysis}: {analysis: AnalysisDetail}) {
                   <div><dt>Calibration version</dt><dd>{run.calibration_version ?? 'Not fitted'}</dd></div>
                   {run.coverage && <div><dt>Screened coverage</dt><dd>{coverageDescription(run)}</dd></div>}
                 </dl>
-                {!!run.notes.length && <ul>{run.notes.map((note, index) => <li key={index}>{note}</li>)}</ul>}
+                {!!run.notes.length && <ul>{run.notes.map((note, index) => <li key={index}>{formatScreeningNote(note)}</li>)}</ul>}
               </details>
             </th>
             <td>{technicalRunStatus(run)}</td>

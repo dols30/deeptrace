@@ -1,5 +1,11 @@
 import type {ComponentResult, Report} from './api';
 
+export function formatScreeningNote(note: string) {
+  return note
+    .replace("Each detector's recorded development/default decision rule is not a validated DPS operational threshold.", 'The recorded decision rules are provisional.')
+    .replace('Small matched-domain benchmark only; not a validated DPS operational threshold.', 'The benchmark covered a small set of similar recordings.');
+}
+
 export function audioCoverage(component: Pick<ComponentResult,'coverage'>, duration?:number|null) {
   if (component.coverage && component.coverage.mode !== 'face_alignment_v1') return `${component.coverage.analyzed_seconds.toFixed(2)} of ${component.coverage.duration_seconds.toFixed(2)} seconds screened (${component.coverage.windows} window${component.coverage.windows === 1 ? '' : 's'})`;
   return `Opening ${Math.min(duration ?? 4.0375,4.0375).toFixed(2)} seconds screened`;

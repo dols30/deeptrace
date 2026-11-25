@@ -1,6 +1,6 @@
 const TERMS: {term: string; meaning: string}[] = [
   {term: 'Model score', meaning: 'A detector output after its documented sigmoid or softmax transformation. Uncalibrated; not a probability that the file is manipulated.'},
-  {term: 'Decision threshold', meaning: 'A development rule used to surface evidence. It is not a DPS-validated operational threshold unless explicitly marked validated.'},
+  {term: 'Decision threshold', meaning: 'A cutoff that flags evidence for review. Development thresholds are provisional.'},
   {term: 'Estimated probability', meaning: 'Shown only after a calibration procedure is fitted and versioned for the checkpoint.'},
   {term: 'Attribution', meaning: 'Regions or spans that influenced the model output. This shows model sensitivity, not proof of manipulation.'},
 ];

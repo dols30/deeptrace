@@ -158,7 +158,7 @@ it('keeps metadata warnings out of the manipulation assessment and retains techn
   expect(screen.getByText('Limited to the analyzed speech window.')).toBeTruthy();
   expect(screen.getByRole('columnheader',{name:'Raw logits',hidden:true})).toBeTruthy();
   expect(screen.getByText('-0.2, 0.7')).toBeTruthy();
-  expect(screen.getByText('Not DPS-validated')).toBeTruthy();
+  expect(screen.getByText('Development rule')).toBeTruthy();
 });
 
 it('does not infer an unflagged assessment from a score without a decision threshold',()=>{
