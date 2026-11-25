@@ -16,73 +16,44 @@ A fresh clone contains the runner code and model documentation, but not weights,
 
 These are five independent classifiers plus supplementary checks. SOFTNet does not classify media as fake or infer deception. Unsupported media may cause individual checks to abstain; a silent video cannot exercise audio checks. Enabling a check is distinct from validating its accuracy. Model scores remain uncalibrated advisory signals, and no cross-detector score is produced. See [model semantics and limitations](MODEL_REGISTRY.md) and [validation results](VALIDATION_RESULTS.md).
 
-## Plan disk space and acquire assets
+## Start the local stack
 
-Docker with Compose **2.24.4 or newer**, Git, and Python 3.9+ are needed for these setup commands. The container uses Python 3.11. ARM64 Linux is the platform exercised by the project workstation and AWS sandbox; other architectures need their own readiness/inference checks.
+Docker with Compose **2.24.4 or newer**, Git, curl, and Python 3.9+ are required. The container uses Python 3.11. ARM64 Linux is the platform exercised on the project workstation and AWS sandbox. Other architectures need their own readiness and inference checks.
 
-The exact required model/configuration/landmark files total **563,815,130 bytes (about 564 MB)**. Upstream Git clones and Docker/Python dependencies are additional and can occupy several GB. No validation datasets are required to run the app, and cloning this project does not download model files automatically. Inspect the size plan first:
-
-```bash
-cd backend
-python3 scripts/verify_all_models.py --plan
-```
-
-Source URLs, commits, file sizes, and full SHA-256 values are recorded in [`model-assets.all.json`](../backend/model-assets.all.json). Read the source/checkpoint terms in [the registry](MODEL_REGISTRY.md); availability online does not itself grant redistribution rights. SOFTNet and its landmark asset have separately documented rights limitations. Share approved asset copies through the team's authorized storage, not Git.
-
-After reviewing sizes and terms, install the pinned source repositories and public weights using the existing explicit download commands:
+From the repository root:
 
 ```bash
-bash scripts/download_models.sh core
-bash scripts/download_models.sh poc-artifacts
-bash scripts/download_public_assets.sh models
-bash scripts/download_public_assets.sh poc-artifacts
+bash scripts/start-local.sh
 ```
 
-`core` installs AASIST and DeepfakeBench without the unused Effort/Nes2Net alternatives. `poc-artifacts` installs CNNDetection, ASVspoof 2021, and SOFTNet. Each source checkout receives a `.deeptrace-revision` marker so images can report the actual pinned revision after Git histories are excluded.
+The script checks local files against [the asset manifest](../backend/model-assets.all.json), downloads missing files from the pinned sources, and verifies all nine asset hashes and five source revisions before building. It creates `.env` with random local account passwords and a JWT secret if the file is absent. If you already have a `.env`, the script keeps it and Compose uses its existing settings. The script builds the core image, layers on the additional models, and starts the all-model stack.
 
-The public-weight script does **not** acquire Community Forensics. Obtain the team's approved original release files for `Thermostatic/community-forensics-frontier-detector-2026-08` revision `16db135220b318d811b207db576d90368980b595` and place them at:
+Open [DeepTrace](http://localhost:3000) and sign in with the employee or supervisor credentials in `.env`. Automatic sign-in is off. The frontend and API bind to loopback, and PostgreSQL has no published host port. Local cases and reports persist in Docker volumes.
 
-```text
-backend/models/commfor/frontier.safetensors
-backend/models/commfor/config.json
-```
+## Download size and asset sources
 
-Use the hashes in the asset catalog to verify these copies. An arbitrary Community Forensics checkpoint or the adapted research head is not equivalent. The 68-point landmark file is supplied by the pinned SOFTNet source checkout at `vendor/SoftNet-SpotME/Utils/shape_predictor_68_face_landmarks.dat`; it is separate from EfficientNet's 81-point landmark file.
-
-Check the complete asset set before building:
+The assets total **563,815,130 bytes (about 564 MB)**. Upstream source checkouts, Docker images, and Python dependencies are additional. Downloads come from the original release hosts, including the pinned Community Forensics release on Hugging Face. Check the [model registry](MODEL_REGISTRY.md) for license terms and limitations before redistributing any files.
 
 ```bash
-python3 scripts/verify_all_models.py
-cd ..
+# List asset sizes without downloading anything.
+bash scripts/start-local.sh --plan
+
+# Download and verify assets and create local credentials without starting Docker.
+bash scripts/start-local.sh --prepare
 ```
 
-The verifier checks all nine asset hashes, all five source revisions, and modified tracked source files when Git metadata is available. It reports missing/mismatched inputs rather than substituting another model. It never downloads or analyzes media.
+An interrupted setup can be run again. If verification reports a changed source checkout or a checksum mismatch, inspect the reported path and move the affected file or checkout aside before retrying. The setup preserves source checkouts at other revisions and stops when verification fails.
 
-## Configure and build
-
-On a fresh checkout, copy [`.env.all-models.example`](../.env.all-models.example) to `.env`, then replace the password and JWT placeholders. Preserve an existing `.env` and merge settings deliberately. Generate a JWT secret with `python3 -c 'import secrets; print(secrets.token_urlsafe(48))'`. Never commit credentials.
-
-```bash
-cp .env.all-models.example .env
-# Edit .env and replace all credential placeholders before continuing.
-docker build -t deeptrace-backend:core ./backend
-docker compose -f docker-compose.yml -f docker-compose.all-models.yml build
-docker compose -f docker-compose.yml -f docker-compose.all-models.yml up -d
-```
-
-`Dockerfile.all-models` extends the core image with pinned torchaudio/TensorFlow/Keras/pandas dependencies and OpenCV contrib (replacing the plain OpenCV package). It includes required optional source files. The frontend build uses the root context with an explicit `.dockerignore` allowlist so shared JSON test fixtures are available for TypeScript checking without sending credentials, model files, datasets or history to that build.
-
-Sign in at http://localhost:3000 using your newly configured employee or supervisor credentials. Automatic sign-in is **off** in this profile. API access remains authenticated, frontend/API host ports remain loopback-only, and PostgreSQL has no published host port. Both workflow and legacy report/media stores remain persistent Docker volumes. All-model configuration does not erase history.
-
-Run readiness checks inside the configured model container:
+## Check or stop the stack
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.all-models.yml ps
 docker compose -f docker-compose.yml -f docker-compose.all-models.yml exec -T backend python scripts/verify_all_models.py --runtime
 curl -fsS http://localhost:8000/health
+docker compose -f docker-compose.yml -f docker-compose.all-models.yml stop
 ```
 
-The runtime check confirms dependency imports, configured commands, coverage/rule settings, and strict SOFTNet weight loading. It does not analyze demo files or establish accuracy. Check new uploads in the app and inspect every component's coverage and limitations. Docker image rebuilds are needed after changing packaged weights, sources or dependencies.
+The runtime check verifies model dependencies, command configuration, and the SOFTNet checkpoint load. Review uploaded samples in the app to exercise inference and check coverage.
 
 ## AWS and team differences
 

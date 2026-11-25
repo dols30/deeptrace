@@ -72,7 +72,7 @@ The opt-in rule requires the recorded EfficientNet source/checkpoint and 81-poin
 | `detector_id` / `task` | `community_forensics` / `synthetic_video` |
 | Selected by | Always constructed; runs when `DEEPTRACE_SCENE_COMMAND` is set |
 | Runner / adapter | `backend/scripts/inference/commfor.py` / `SceneVideoAnalyzer` |
-| Checkpoint | `models/commfor/frontier.safetensors` + `config.json`, reported revision `16db135220b318d811b207db576d90368980b595` (`Thermostatic/community-forensics-frontier-detector-2026-08`, fine-tune of `OwensLab/commfor-model-384`, MIT per config). **TODO: no script in the repo downloads this checkpoint**; provenance relies on the local `.sha256`/`.revision` files |
+| Checkpoint | `models/commfor/frontier.safetensors` + `config.json`, reported revision `16db135220b318d811b207db576d90368980b595` (`Thermostatic/community-forensics-frontier-detector-2026-08`, fine-tune of `OwensLab/commfor-model-384`, MIT per config). Fetched by `backend/scripts/download_public_assets.sh community-forensics` and checked against the all-model asset manifest |
 | Training data | Runner docstring: fine-tuned "on recent generators with JPEG/WebP laundering augmentation". Specific datasets: **unknown** |
 | Input | Same sampled JPEG frames as the face model |
 | Preprocessing | RGB → bilinear resize short edge to 440 → center crop 384×384 → `/255` → ImageNet mean/std |

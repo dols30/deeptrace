@@ -6,20 +6,15 @@ Each detector reports its own score and the parts of the recording it could asse
 
 ## Run locally
 
-Use Docker with Compose 2.24.4 or newer, Git, and Python 3.9 or newer for the setup scripts. The documented all-model profile was exercised on ARM64.
-
-1. Follow the [all-model setup guide](docs/ALL_MODELS_SETUP.md) to obtain and verify the model files. The required assets total about 564 MB, plus source checkouts and container dependencies.
-2. On a fresh checkout, copy `.env.all-models.example` to `.env`. Set the account passwords and JWT secret before starting the services.
-3. Build and start the stack from the repository root.
+Install Docker with Compose 2.24.4 or newer, Git, curl, and Python 3.9 or newer. From the repository root, run:
 
 ```sh
-docker build -t deeptrace-backend:core ./backend
-docker compose -f docker-compose.yml -f docker-compose.all-models.yml build
-docker compose -f docker-compose.yml -f docker-compose.all-models.yml up -d
-curl -fsS http://localhost:8000/health
+bash scripts/start-local.sh
 ```
 
-Open [DeepTrace](http://localhost:3000) and sign in with the investigator or supervisor account configured in `.env`. The [API reference](http://localhost:8000/docs) is available while the stack is running.
+The first run downloads and verifies about 564 MB of model assets plus pinned source checkouts, creates local sign-in credentials in `.env`, and starts DeepTrace. Docker images and Python dependencies take additional space. Later runs reuse verified model files and the existing `.env`.
+
+Open [DeepTrace](http://localhost:3000) and sign in with the employee or supervisor credentials in `.env`. See the [all-model setup guide](docs/ALL_MODELS_SETUP.md) for disk planning, supported platforms, and runtime checks.
 
 ## Repository layout
 
@@ -27,7 +22,8 @@ Open [DeepTrace](http://localhost:3000) and sign in with the investigator or sup
 | --- | --- |
 | `frontend/` | Next.js case workspace, review queue, and reporting UI |
 | `backend/deeptrace/` | FastAPI endpoints, case workflow, persistence, and detector adapters |
-| `backend/scripts/` | Model runners, setup, and verification scripts |
+| `backend/scripts/` | Model runners, downloads, and verification |
+| `scripts/start-local.sh` | Downloads the pinned assets and starts the local Docker stack |
 | `backend/tests/` | API, workflow, and detector adapter tests |
 | `docs/` | Architecture, API contracts, model configuration, and validation |
 | `.github/workflows/` | GitHub Actions checks |

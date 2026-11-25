@@ -5,6 +5,7 @@ model_assets_root="$(cd "$(dirname "$0")/.." && pwd)"
 usage() {
   cat <<'EOF'
 Usage: scripts/download_public_assets.sh models [DESTINATION]
+       scripts/download_public_assets.sh community-forensics [DESTINATION]
        scripts/download_public_assets.sh poc-artifacts [DESTINATION]
        scripts/download_public_assets.sh wavefake [DESTINATION]
        scripts/download_public_assets.sh asvspoof2021-df [DESTINATION]
@@ -81,6 +82,14 @@ case "$command" in
       "https://github.com/SCLBD/DeepfakeBench/releases/download/v1.0.0/shape_predictor_81_face_landmarks.dat" \
       "${destination}/efficientnetb4/shape_predictor_81_face_landmarks.dat" \
       "8cae4375589dd915d9a0a881101bed1bbb4e9887e35e63b024388f1ca25ff869"
+    ;;
+  community-forensics)
+    destination="${2:-${model_assets_root}/models}"
+    release='https://huggingface.co/Thermostatic/community-forensics-frontier-detector-2026-08/resolve/16db135220b318d811b207db576d90368980b595'
+    download "$release/model.safetensors" "${destination}/commfor/frontier.safetensors" \
+      '2f445aecc310caee9b55d3ae0aeebc404a32d72e5836e30523ce0a9a1720cd47'
+    download "$release/config.json" "${destination}/commfor/config.json" \
+      '17cc7d383a872107f43b8603e81081530ac86ef9fb4564e7f2c2ba34342989c1'
     ;;
   wavefake)
     destination="${2:-/cluster/datasets/deeptrace/archives/wavefake-1.2.0}"
