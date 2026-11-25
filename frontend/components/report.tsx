@@ -7,6 +7,7 @@ import {
 } from '../lib/api';
 import {useAuth} from './auth';
 import {createReportPdf} from '../lib/report-pdf';
+import {REPORT_STATUS_LABELS} from '../lib/report-presentation';
 import {ReportOverview, ReportTechnical} from './report-content';
 
 export function ReportView({report:r,onReset}:{report:Report;onReset:()=>void}) {
@@ -32,11 +33,11 @@ export function ReportView({report:r,onReset}:{report:Report;onReset:()=>void}) 
   return <section className={`report screening-report report-${reportView}`} ref={heading} tabIndex={-1} aria-label="Screening report">
     <header className="screening-report-heading">
       <div>
-        <p className="screening-report-reference">Report <code>{r.report_id.slice(0,8)}</code>{r.owner && <span> · {r.owner}</span>}</p>
+        <p className="screening-report-reference">Screening report{r.owner && <span> · {r.owner}</span>}</p>
         <h1>{r.media.filename}</h1>
         <p className="screening-report-meta">{r.media.media_kind === 'video' ? 'Video' : 'Audio'} · {formatBytes(r.media.size_bytes)}{r.media.duration_seconds != null && ` · ${r.media.duration_seconds.toFixed(2)} seconds`}</p>
       </div>
-      <span className={`workflow-badge ${workflow}`}>{workflow.replaceAll('_',' ')}</span>
+      <span className={`workflow-badge ${workflow}`}>{REPORT_STATUS_LABELS[workflow]}</span>
     </header>
     <div className="report-actions">
       {auth.role==='analyst'&&workflow==='draft'&&<button className="primary-button review-button" onClick={send}>Send for review</button>}
@@ -50,7 +51,7 @@ export function ReportView({report:r,onReset}:{report:Report;onReset:()=>void}) 
     {auth.role==='supervisor'&&workflow!=='draft'&&mediaUrl&&<div className="review-media">{r.media.media_kind==='video'?<video src={mediaUrl} controls/>:<audio src={mediaUrl} controls/>}</div>}
     <div className="report-view-control" role="radiogroup" aria-label="Report detail level">
       <label><input type="radio" name={`report-view-${r.report_id}`} value="overview" checked={reportView==='overview'} onChange={()=>setReportView('overview')}/><span>Overview</span></label>
-      <label><input type="radio" name={`report-view-${r.report_id}`} value="technical" checked={reportView==='technical'} onChange={()=>setReportView('technical')}/><span>Technical detail</span></label>
+      <label><input type="radio" name={`report-view-${r.report_id}`} value="technical" checked={reportView==='technical'} onChange={()=>setReportView('technical')}/><span>Technical details</span></label>
     </div>
     {reportView === 'overview' ? <ReportOverview report={r}/> : <ReportTechnical report={r}/>}
     {auth.token&&<section className="report-review-workspace" aria-labelledby="report-review-title">

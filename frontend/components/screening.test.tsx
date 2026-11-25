@@ -15,7 +15,7 @@ Element.prototype.scrollIntoView=vi.fn();
 
 it('shows the exact recorded PoC threshold in technical details',()=>{
   render(<ReportView report={{...report,components:[{...report.components[0],component:'video',task:'face_manipulation',status:'functional',raw_score:.8,threshold:.9967585206031799}]}} onReset={()=>{}}/>);
-  fireEvent.click(screen.getByRole('radio',{name:'Technical detail'}));
+  fireEvent.click(screen.getByRole('radio',{name:'Technical details'}));
   expect(screen.getByText('0.9967585206031799')).toBeTruthy();
 });
 beforeEach(()=>{listComments.mockResolvedValue([]);getNotebook.mockResolvedValue({report_id:'test',author:'user',body:'',updated_at:'2026-09-06'});getReportMedia.mockResolvedValue(new Blob(['media']));});
@@ -53,13 +53,13 @@ it('expires the session on unauthorized analysis',async()=>{
 });
 it('renders model output as text rather than HTML',()=>{
   render(<ReportView report={{...report,summary:'<img src=x onerror=alert(1)>'}} onReset={()=>{}}/>);
-  fireEvent.click(screen.getByRole('radio',{name:'Technical detail'}));
+  fireEvent.click(screen.getByRole('radio',{name:'Technical details'}));
   expect(screen.getByText('<img src=x onerror=alert(1)>')).toBeTruthy();expect(document.querySelector('.report img')).toBeNull();
 });
 it('shows detector model scores without a composite confidence',()=>{
   render(<ReportView report={{...report,overall_synthetic_confidence:.1734,components:[{...report.components[0],status:'functional',synthetic_confidence:.346697}]}} onReset={()=>{}}/>);
   expect(screen.queryByText('17.3%')).toBeNull();
-  fireEvent.click(screen.getByRole('radio',{name:'Technical detail'}));
+  fireEvent.click(screen.getByRole('radio',{name:'Technical details'}));
   expect(screen.getByText('0.347')).toBeTruthy();
   expect(screen.getByText(/No cross-detector average/)).toBeTruthy();
 });
@@ -69,11 +69,11 @@ it('defaults to a plain-language overview and lets technical users switch detail
   expect((screen.getByRole('radio',{name:'Overview'}) as HTMLInputElement).checked).toBe(true);
   expect(screen.getByText('Advisory screening · requires qualified review')).toBeTruthy();
   expect(screen.getByRole('heading',{name:'Possible manipulation flagged'})).toBeTruthy();
-  expect(screen.getByText('Flagged')).toBeTruthy();
+  expect(screen.getByText('Flagged for review')).toBeTruthy();
   expect(screen.getByRole('heading',{name:'Findings'})).toBeTruthy();
   expect(screen.queryByText('Technical description')).toBeNull();
-  fireEvent.click(screen.getByRole('radio',{name:'Technical detail'}));
-  expect((screen.getByRole('radio',{name:'Technical detail'}) as HTMLInputElement).checked).toBe(true);
+  fireEvent.click(screen.getByRole('radio',{name:'Technical details'}));
+  expect((screen.getByRole('radio',{name:'Technical details'}) as HTMLInputElement).checked).toBe(true);
   expect(screen.getByText('Technical description')).toBeTruthy();
 });
 
@@ -106,7 +106,7 @@ it('keeps metadata warnings out of the manipulation assessment and retains techn
   render(<ReportView report={{...report,components:[{...report.components[0],status:'functional',raw_score:.2,threshold:.5,limitations:['Limited to the analyzed speech window.'],samples:[{start_time:0,end_time:4.0375,raw_score:.2,raw_logits:[-.2,.7]}]}],anomalies:[warning]}} onReset={()=>{}}/>);
   expect(screen.getByRole('heading',{name:'No manipulation detected'})).toBeTruthy();
   expect(screen.queryByText('Metadata read warning')).toBeNull();
-  fireEvent.click(screen.getByRole('radio',{name:'Technical detail'}));
+  fireEvent.click(screen.getByRole('radio',{name:'Technical details'}));
   expect(screen.getByText('Metadata read warning')).toBeTruthy();
   expect(screen.getByText('Limited to the analyzed speech window.')).toBeTruthy();
   expect(screen.getByRole('columnheader',{name:'Raw logits',hidden:true})).toBeTruthy();

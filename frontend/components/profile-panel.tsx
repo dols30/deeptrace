@@ -1,97 +1,98 @@
 'use client';
-import {useEffect, useState} from 'react';
-import {getProfile, updateProfile, type Profile, type Role} from '../lib/api';
+import {useEffect, useRef, useState} from 'react';
+import {getProfile, updateProfile, type Profile} from '../lib/api';
 import {ROLE_LABEL} from '../lib/workflow';
 import {useAuth} from './auth';
 import {PageFrame} from './page-frame';
 
-const ACCESS: Record<Role, string> = {
-  analyst: 'Records dispositions and can send a report for approval.',
-  investigator: 'Records dispositions and can send a report for approval.',
-  forensic_reviewer: 'Reviews escalated findings and adds expert comments.',
-  supervisor: 'Approves submitted reports and can request changes.',
-  administrator: 'Manages directory users and oversight settings.',
-};
-
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (!parts.length) return 'DT';
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-}
-
 export function ProfilePanel() {
   const auth = useAuth();
+  const expire = useRef(auth.expire);
+  expire.current = auth.expire;
   const [profile, setProfile] = useState<Profile | null>(null);
   const [name, setName] = useState('');
   const [title, setTitle] = useState('');
-  const [message, setMessage] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
 
   useEffect(() => {
     if (!auth.token) return;
+    let active = true;
     getProfile(auth.token).then(item => {
+      if (!active) return;
       setProfile(item);
       setName(item.display_name);
       setTitle(item.title);
-    }).catch(() => setMessage('Could not load profile.'));
-  }, [auth.token]);
+    }).catch(error => {
+      if (!active) return;
+      if (error instanceof Error && error.message === 'SESSION_EXPIRED') {
+        expire.current();
+      } else {
+        setLoadFailed(true);
+      }
+    });
+    return () => { active = false; };
+  }, [auth.token, attempt]);
 
-  async function save(event: React.FormEvent) {
+  const saving = saveState === 'saving';
+  const dirty = profile && (name.trim() !== profile.display_name || title.trim() !== profile.title);
+
+  async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!auth.token) return;
-    setSaving(true);
-    setMessage('Saving…');
+    if (!auth.token || !dirty || saving) return;
+    setSaveState('saving');
     try {
-      const item = await updateProfile({display_name: name, title}, auth.token);
+      const item = await updateProfile({display_name: name.trim(), title: title.trim()}, auth.token);
       setProfile(item);
-      setMessage('Profile saved.');
-    } catch {
-      setMessage('Could not save profile.');
-    } finally {
-      setSaving(false);
+      setName(item.display_name);
+      setTitle(item.title);
+      setSaveState('saved');
+    } catch (error) {
+      if (error instanceof Error && error.message === 'SESSION_EXPIRED') auth.expire();
+      setSaveState('failed');
     }
   }
 
-  const role = profile?.role ?? auth.role;
-  const roleLabel = role ? ROLE_LABEL[role] ?? role : 'Loading…';
-
   return <PageFrame>
-    <div className="profile-layout">
-      <section className="profile-identity">
-        <span className="profile-avatar" aria-hidden="true">{initials(name || profile?.username || 'DeepTrace')}</span>
-        <div>
-          <h2>{name || 'Profile'}</h2>
-          <p>{title || 'Add a title'}</p>
-        </div>
-        <span className="role-chip">{roleLabel}</span>
-        <dl className="profile-facts profile-facts-stack">
-          <div><dt>Username</dt><dd>{profile?.username || 'Loading…'}</dd></div>
-          <div><dt>Session</dt><dd>This browser</dd></div>
-        </dl>
-        <button type="button" className="secondary-button" onClick={auth.signOut}>Sign out</button>
-      </section>
-      <div className="profile-panels">
-        <section className="profile-panel">
-          <h2>Identity</h2>
-          <form className="profile-form" onSubmit={event => void save(event)}>
-            <label>Display name<input value={name} onChange={event => setName(event.target.value)} required maxLength={80} autoComplete="name"/></label>
-            <label>Title<input value={title} onChange={event => setTitle(event.target.value)} required maxLength={80} autoComplete="organization-title"/></label>
-            <div className="profile-form-actions">
-              <button className="primary-button" disabled={saving}>{saving ? 'Saving…' : 'Save profile'}</button>
-              <p aria-live="polite">{message}</p>
-            </div>
-          </form>
-        </section>
-        <section className="profile-panel">
-          <h2>Access</h2>
-          <dl className="profile-facts">
-            <div><dt>Role</dt><dd>{roleLabel}</dd></div>
-            <div><dt>Authority</dt><dd>{role ? ACCESS[role] : 'Loading…'}</dd></div>
-            <div><dt>Workspace</dt><dd>Open cases, media review, and reports</dd></div>
-            <div><dt>Record</dt><dd>Actions are written to the audit log</dd></div>
-          </dl>
-        </section>
+    <div className="account-profile">
+      <header className="model-page-heading"><h1>Profile</h1></header>
+      <div className="profile-panel">
+        {profile ? <>
+          <section aria-labelledby="profile-details-heading">
+            <h2 id="profile-details-heading">Personal details</h2>
+            <form className="profile-form" onSubmit={event => void save(event)} aria-busy={saving}>
+              <label>Display name
+                <input value={name} onChange={event => { setName(event.target.value); setSaveState('idle'); }}
+                  required maxLength={80} autoComplete="name" disabled={saving}/>
+              </label>
+              <label>Job title
+                <input value={title} onChange={event => { setTitle(event.target.value); setSaveState('idle'); }}
+                  required maxLength={80} autoComplete="organization-title" disabled={saving}/>
+              </label>
+              <div className="profile-form-actions">
+                <button className="primary-button" disabled={!dirty || !name.trim() || !title.trim() || saving}>
+                  {saving ? 'Saving…' : 'Save changes'}
+                </button>
+                <span role="status">{saveState === 'saved' ? 'Changes saved' : ''}</span>
+                {saveState === 'failed' && <span className="profile-save-error" role="alert">Couldn’t save changes. Try again.</span>}
+              </div>
+            </form>
+          </section>
+          <section className="profile-access" aria-labelledby="profile-access-heading">
+            <h2 id="profile-access-heading">Account access</h2>
+            <dl className="profile-facts">
+              <div><dt>Username</dt><dd>{profile.username}</dd></div>
+              <div><dt>Role</dt><dd>{ROLE_LABEL[profile.role] ?? profile.role}</dd></div>
+            </dl>
+          </section>
+        </> : loadFailed ? <div className="profile-form-actions">
+          <span role="alert">Couldn’t load your profile.</span>
+          <button type="button" className="secondary-button" onClick={() => {
+            setLoadFailed(false);
+            setAttempt(previous => previous + 1);
+          }}>Try again</button>
+        </div> : <p className="profile-loading" role="status">Loading profile…</p>}
       </div>
     </div>
   </PageFrame>;

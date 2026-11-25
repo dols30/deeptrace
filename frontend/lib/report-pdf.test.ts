@@ -28,7 +28,8 @@ it('exports a readable overview and technical record without a fused probability
   expect(pdf).not.toContain('93.6%');
   expect(pdf).not.toContain('99.9%');
   for(const value of ['Not DPS-validated','Recorded detector observation.','Original automated narrative.','Recorded limitation.','Recorded method.','https://example.com/reference','-0.123456789, 0.87654321']) expect(pdf).toContain(value);
-  expect(pdf).toContain('Advisory screening - qualified human review required');
+  expect(pdf).toContain('Authenticity is undetermined.');
+  expect(pdf).not.toContain('Advisory screening - qualified human review required');
   expect(pdf).toContain('Interview \\(\\351t\\351\\).mp4');
 });
 
@@ -50,7 +51,7 @@ it('paginates long text and sample tables without dropping data or writing below
   for(const match of pdf.matchAll(/1 0 0 1 (-?[\d.]+) (-?[\d.]+) Tm \((.*?)\) Tj/g)) {
     const x=Number(match[1]),baseline=Number(match[2]);
     expect(x).toBeGreaterThanOrEqual(54);
-    const footer=match[3].startsWith('Advisory screening -') || /^\d+ \/ \d+$/.test(match[3]);
+    const footer=match[3] === 'DeepTrace' || /^\d+ \/ \d+$/.test(match[3]);
     expect(baseline).toBeGreaterThanOrEqual(footer ? 23.5 : 64);
     expect(baseline).toBeLessThan(HEIGHT);
   }

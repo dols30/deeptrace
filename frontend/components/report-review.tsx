@@ -3,13 +3,16 @@ import Link from 'next/link';
 import {useEffect, useRef, useState} from 'react';
 import {TraceLoadingMark} from './trace/trace-mark';
 import {
-  clock, finalizeCaseReport, getAnalysis, getAnalysisMedia, getCaseReport, REPORT_SECTIONS,
+  finalizeCaseReport, getAnalysis, getAnalysisMedia, getCaseReport, REPORT_SECTIONS,
   reportDiff, requestChanges, restoreRevision, saveCaseReport, STATUS_LABEL,
   submitCaseReport, type AnalysisDetail, type CaseReport, type Finding,
 } from '../lib/workflow';
 import {useAuth} from './auth';
 import {GuideButton, GuidedTour} from './guide/guided-tour';
 import {EMPTY_FINDINGS, guideForSurface, userKeyFromToken} from './guide/tour-copy';
+
+import {FindingPicker} from './workspace/findings-inspector';
+import {ReportSectionText} from './workspace/screening-draft';
 
 const HUMAN_KEYS = new Set(['investigator_assessment', 'items_requiring_additional_review', 'reviewer_notes']);
 
@@ -107,13 +110,19 @@ export function ReportReview({id}: {id: string}) {
         ? <video ref={mediaRef} src={mediaUrl} controls onTimeUpdate={event => setCurrentTime(event.currentTarget.currentTime)}/>
         : <audio ref={mediaRef} src={mediaUrl} controls onTimeUpdate={event => setCurrentTime(event.currentTarget.currentTime)}/>}
       <label className="stack">Seek<input type="number" min={0} step={0.1} value={Number(currentTime.toFixed(1))} onChange={event => seek(Number(event.target.value))} aria-label="Seek to seconds"/></label>
-      <ol className="review-findings">{analysis.findings.length ? analysis.findings.map((finding, index) => <li key={finding.id}><button type="button" className={finding.id === selected?.id ? 'selected' : ''} onClick={() => selectFinding(finding)}><span>Finding {index + 1}</span><small>{clock(finding.start_time)} · {finding.modality} · score {finding.raw_score.toFixed(2)} · {finding.human_disposition ?? 'not reviewed'}</small></button></li>) : <li>{EMPTY_FINDINGS}</li>}</ol>
+      {analysis.findings.length
+        ? <FindingPicker findings={analysis.findings} selected={selected} onSelect={selectFinding}/>
+        : <p>{EMPTY_FINDINGS}</p>}
     </section>
     <section className="report-editor" aria-label="Human report">
       <div className="workspace-title"><h2>Human report</h2><span>{saveState}</span></div>
       <div className="detector-toolbar"><GuideButton tourId={guide.tourId} userKey={userKey}/></div>
       <p>Write the investigator sections here. The AI draft stays visible and is never overwritten.</p>
-      {aiSections.map(section => <article key={section.key} className="ai-reference"><h3>{section.label} <i className="origin-ai">AI-generated</i></h3><p>{report.ai_original[section.key]?.text || 'Empty'}</p></article>)}
+      <details className="report-detail"><summary>Original screening draft</summary>
+        {aiSections.map(section => <article key={section.key} className="ai-reference">
+          <h3>{section.label}</h3><ReportSectionText text={report.ai_original[section.key]?.text}/>
+        </article>)}
+      </details>
       {REPORT_SECTIONS.filter(section => HUMAN_KEYS.has(section.key)).map(section => {
         const current = report.current[section.key] ?? {text: '', origin: 'human' as const};
         const canEdit = analysis.status !== 'FINALIZED' && (auth.role === 'supervisor'
