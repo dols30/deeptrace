@@ -1,6 +1,8 @@
 import os
 import tempfile
 import sqlite3
+from concurrent.futures import ThreadPoolExecutor, wait
+from functools import partial
 from time import perf_counter
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -35,6 +37,7 @@ from deeptrace.workflow import service as workflow_service
 from deeptrace.workflow.access import WorkflowError
 
 router = APIRouter()
+_review_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="deeptrace-review")
 
 
 @router.get("/v1/auth/config")
@@ -95,6 +98,7 @@ def _screen_upload(path: Path, filename: str, content_type: str, user: dict,
                    profile: AnalysisProfile | None = None) -> AdvisoryReport:
     profile = profile or AnalysisProfile()
     prepared_frames = None
+    review_future = micro_future = None
     try:
         try:
             media_timings = {}
@@ -104,6 +108,16 @@ def _screen_upload(path: Path, filename: str, content_type: str, user: dict,
                 profile.add(name, elapsed)
         except ValueError as exc:
             raise HTTPException(status_code=415, detail=str(exc)) from exc
+        review = partial(analyze_review_signals, settings.review_signals_command, path, metadata,
+                         settings.review_signals_timeout_seconds)
+        micro = None
+        if settings.micro_expression_command:
+            micro = partial(analyze_micro_expression, settings.micro_expression_command, path, metadata)
+        if settings.parallel_review_checks and metadata.media_kind == "video":
+            if settings.review_signals_command:
+                review_future = _review_executor.submit(review)
+            if micro is not None:
+                micro_future = _review_executor.submit(micro)
         face_analyzer = (EfficientNetVideoAnalyzer(settings.efficientnet_command, settings.frame_interval_seconds,
             explain=settings.explain, decision_rule=settings.efficientnet_decision_rule)
             if settings.video_model == "efficientnetb4" else EffortVideoAnalyzer(settings.effort_command, settings.frame_interval_seconds))
@@ -172,10 +186,11 @@ def _screen_upload(path: Path, filename: str, content_type: str, user: dict,
             components.append(component)
             profile.add_runner(analyzer.model_name, perf_counter() - started, analyzer.last_profile)
         started = perf_counter()
-        review_checks = analyze_review_signals(settings.review_signals_command, path, metadata, settings.review_signals_timeout_seconds)
-        if settings.micro_expression_command:
-            review_checks.append(analyze_micro_expression(settings.micro_expression_command, path, metadata))
-        profile.add("supplementary review measurements", perf_counter() - started)
+        review_checks = review_future.result() if review_future is not None else review()
+        if micro is not None:
+            review_checks.append(micro_future.result() if micro_future is not None else micro())
+        profile.add("supplementary review wait" if review_future or micro_future
+                    else "supplementary review measurements", perf_counter() - started)
         started = perf_counter()
         report = build_report(metadata, components, keep_uploads=settings.keep_uploads,
             review_checks=review_checks,
@@ -227,6 +242,11 @@ def _screen_upload(path: Path, filename: str, content_type: str, user: dict,
         profile.add("persistence: legacy DB", perf_counter() - started)
         return report
     finally:
+        # Running checks still read the upload. Cancel queued work and wait before the route removes it.
+        futures = [future for future in (review_future, micro_future)
+                   if future is not None and not future.cancel()]
+        if futures:
+            wait(futures)
         if prepared_frames:
             cleanup_prepared(prepared_frames)
 

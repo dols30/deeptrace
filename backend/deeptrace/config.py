@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     micro_expression_command: str | None = None
     review_signals_command: str | None = None
     review_signals_timeout_seconds: int = 300
+    parallel_review_checks: bool = False
     aasist_window_mode: Literal["first", "full"] = "first"
     deployment_mode: Literal["local", "sandbox"] = "local"
     visual_weight: float = 0.5
