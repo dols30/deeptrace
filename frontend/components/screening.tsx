@@ -1,7 +1,9 @@
 'use client';
 import {useEffect, useRef, useState} from 'react';
 import {analyze, formatBytes, type Report} from '../lib/api';
+import {getModelInfo} from '../lib/workflow';
 import {useAuth} from './auth';
+import {CaseChat} from './case-chat';
 import {ReportView} from './report';
 import {TraceLoadingMark} from './trace/trace-mark';
 
@@ -13,8 +15,27 @@ export function Screening() {
   const [drag, setDrag] = useState(false);
   const [error, setError] = useState('');
   const [report, setReport] = useState<Report | null>(null);
+  const [modelCount, setModelCount] = useState(0);
   const lock = useRef(false);
   const input = useRef<HTMLInputElement>(null);
+
+  const token = auth.token;
+  useEffect(() => {
+    if (!token) return;
+    let active = true;
+    getModelInfo(token).then(models => {
+      const checks = [
+        models.video_configured,
+        models.scene_configured,
+        models.audio_configured,
+        ...(models.supplementary_methods ?? []).map(method => method.configured),
+      ];
+      if (active) setModelCount(checks.filter(Boolean).length);
+    }).catch(() => {
+      if (active) setModelCount(0);
+    });
+    return () => { active = false; };
+  }, [token]);
 
   useEffect(() => {
     if (!file) {
@@ -136,7 +157,10 @@ export function Screening() {
         <section className="loading-panel intake-loading" role="status" aria-live="polite">
           <div>
             <TraceLoadingMark size={28} />
-            <strong>Analyzing file</strong>
+            <div className="intake-loading-copy">
+              <strong>Analyzing file</strong>
+              {modelCount > 0 && <small>{modelCount} {modelCount === 1 ? 'model' : 'models'} available</small>}
+            </div>
           </div>
         </section>
       )}
@@ -151,6 +175,7 @@ export function Screening() {
           }}
         />
       )}
+      {report?.analysis_id && token && <CaseChat key={report.analysis_id} analysisId={report.analysis_id} />}
     </>
   );
 }

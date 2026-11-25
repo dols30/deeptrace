@@ -7,7 +7,9 @@ const {analyze,expire,listReports,getReport,submitReport,getReportMedia,listComm
   analyze:vi.fn(),expire:vi.fn(),listReports:vi.fn(),getReport:vi.fn(),submitReport:vi.fn(),getReportMedia:vi.fn(),listComments:vi.fn(),getNotebook:vi.fn(),addComment:vi.fn(),saveNotebook:vi.fn(),startReview:vi.fn(),completeReview:vi.fn(),
   authState:{ready:true,config:{enabled:false},token:null as string|null,role:null as 'analyst'|'supervisor'|null,error:'',expire:vi.fn()},
 }));
+const {getModelInfo, askAssistant} = vi.hoisted(() => ({getModelInfo: vi.fn(), askAssistant: vi.fn()}));
 vi.mock('../lib/api',async importOriginal=>({...await importOriginal<object>(),analyze,listReports,getReport,submitReport,getReportMedia,listComments,getNotebook,addComment,saveNotebook,startReview,completeReview}));
+vi.mock('../lib/workflow', async importOriginal => ({...await importOriginal<object>(), getModelInfo, askAssistant}));
 vi.mock('./auth',()=>({useAuth:()=>({...authState,expire})}));
 const report:Report={report_id:'test',generated_at:'2026-09-06',disclaimer:'Advisory',summary:'No applicable detector produced a score.',recommended_action:'Review',examination_scope:'Screening',review_status:'Pending',overall_synthetic_confidence:null,media:{filename:'sample.wav',media_kind:'audio',size_bytes:4,sha256:'a'.repeat(64)},components:[{component:'audio',status:'unavailable',model_name:'AASIST',model_version:'unconfigured',synthetic_confidence:null,timestamps_seconds:[],notes:[]}],anomalies:[],integrity:{},methods:[],limitations:[],references:[]};
 URL.createObjectURL=vi.fn(()=>'blob:preview');URL.revokeObjectURL=vi.fn();
@@ -18,7 +20,12 @@ it('shows the exact recorded PoC threshold in technical details',()=>{
   fireEvent.click(screen.getByRole('radio',{name:'Technical details'}));
   expect(screen.getByText('0.9967585206031799')).toBeTruthy();
 });
-beforeEach(()=>{listComments.mockResolvedValue([]);getNotebook.mockResolvedValue({report_id:'test',author:'user',body:'',updated_at:'2026-09-06'});getReportMedia.mockResolvedValue(new Blob(['media']));});
+beforeEach(()=>{
+  listComments.mockResolvedValue([]);
+  getNotebook.mockResolvedValue({report_id:'test',author:'user',body:'',updated_at:'2026-09-06'});
+  getReportMedia.mockResolvedValue(new Blob(['media']));
+  getModelInfo.mockResolvedValue({video_configured: true, audio_configured: true, scene_configured: true});
+});
 afterEach(()=>{cleanup();authState.token=null;authState.role=null;vi.clearAllMocks();});
 it('starts clean instead of restoring a previous report',()=>{
   authState.token='token';
@@ -39,6 +46,36 @@ it('uploads the selected file and shows unavailable results honestly',async()=>{
   expect(analyze).toHaveBeenCalledWith(file,null);
   expect(screen.getByText('Incomplete')).toBeTruthy();
   expect(screen.queryByRole('heading',{name:'No manipulation detected'})).toBeNull();
+});
+
+it('shows the model count during screening and opens the assistant for the completed case', async () => {
+  authState.token = 'token';
+  getModelInfo.mockResolvedValue({
+    video_configured: true,
+    audio_configured: true,
+    scene_configured: true,
+    supplementary_methods: [{configured: true}, {configured: true}, {configured: true}],
+  });
+  askAssistant.mockResolvedValue({answer: 'Review the results in context.', citations: []});
+  let finish!: (result: Report) => void;
+  analyze.mockReturnValue(new Promise<Report>(resolve => { finish = resolve; }));
+  render(<Screening />);
+  const file = new File(['audio'], 'sample.wav', {type: 'audio/wav'});
+  fireEvent.change(screen.getByLabelText('Choose media file'), {target: {files: [file]}});
+  fireEvent.click(screen.getByRole('button', {name: 'Analyze file'}));
+
+  expect(await screen.findByText('6 models available')).toBeTruthy();
+  expect(screen.queryByRole('button', {name: 'Open case assistant'})).toBeNull();
+
+  finish({...report, analysis_id: 'case-123'});
+  fireEvent.click(await screen.findByRole('button', {name: 'Open case assistant'}));
+  fireEvent.click(screen.getByRole('button', {name: 'Summarize the findings'}));
+  expect(await screen.findByText('Review the results in context.')).toBeTruthy();
+  expect(askAssistant).toHaveBeenCalledWith('case-123', 'Summarize the findings', 'token', []);
+  expect(screen.queryByText('6 models available')).toBeNull();
+
+  fireEvent.click(screen.getByRole('button', {name: 'New screening'}));
+  expect(screen.queryByRole('button', {name: /case assistant/i})).toBeNull();
 });
 it('rejects oversized uploads before calling the API',()=>{
   render(<Screening/>);const file=new File(['a'],'large.wav',{type:'audio/wav'});Object.defineProperty(file,'size',{value:101*1024*1024});

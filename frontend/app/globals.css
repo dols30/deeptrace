@@ -2174,6 +2174,8 @@ fieldset label { display:flex; gap:8px; align-items:center; }
 .intake-experience .primary-button:disabled { color:var(--muted); background:var(--surface-3); }
 .intake-loading { display:flex; align-items:center; gap:10px; margin-top:12px; padding:10px 0; border:0; border-top:1px solid var(--intake-line); border-radius:0; background:transparent; box-shadow:none; color:var(--ink-2); text-align:left; }
 .intake-loading > div { display:flex; align-items:center; gap:10px; }
+.intake-loading-copy { display:grid; gap:2px; }
+.intake-loading-copy small { font-size:0.875rem; color:var(--muted); }
 .intake-loading .trace-loading-mark { width:28px; height:28px; background:var(--surface-2); }
 :root[data-theme="dark"] .intake-experience { --intake-mark:#8eb4b0; }
 .dash-main .report { padding:0; border:0; border-radius:0; background:transparent; box-shadow:none; }
